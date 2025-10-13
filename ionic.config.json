@@ -1,0 +1,7 @@
+{
+  "name": "recicla-tura",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}
