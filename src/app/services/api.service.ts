@@ -59,7 +59,7 @@ export class ApiService {
 
   // Obtener todas las rutas
   async getRutas(): Promise<Ruta[]> {
-    const url = `${this.baseUrl}rutas?profile_id=${this.profileId}&perfil_id=${this.profileId}`;
+    const url = `${this.baseUrl}rutas?perfil_id=${this.profileId}`;
     console.log('API Service - Solicitando rutas desde:', url);
     const response = await firstValueFrom(this.http.get<{data: Ruta[]}>(url));
     return response?.data || [];
@@ -67,19 +67,19 @@ export class ApiService {
 
   // Obtener una ruta específica
   async getRuta(id: string): Promise<Ruta> {
-    const response = await firstValueFrom(this.http.get<{data: Ruta}>(`${this.baseUrl}rutas/${id}?profile_id=${this.profileId}&perfil_id=${this.profileId}`));
+    const response = await firstValueFrom(this.http.get<{data: Ruta}>(`${this.baseUrl}rutas/${id}?perfil_id=${this.profileId}`));
     return response?.data;
   }
 
   // Obtener puntos de una ruta
   async getPuntosRuta(rutaId: string): Promise<PuntoRuta[]> {
-    const response = await firstValueFrom(this.http.get<{data: PuntoRuta[]}>(`${this.baseUrl}rutas/${rutaId}/puntos?profile_id=${this.profileId}&perfil_id=${this.profileId}`));
+    const response = await firstValueFrom(this.http.get<{data: PuntoRuta[]}>(`${this.baseUrl}rutas/${rutaId}/puntos?perfil_id=${this.profileId}`));
     return response?.data || [];
   }
 
   // Obtener vehículos
   async getVehiculos(): Promise<Vehiculo[]> {
-    const url = `${this.baseUrl}vehiculos?profile_id=${this.profileId}&perfil_id=${this.profileId}`;
+    const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
     console.log('API Service - Solicitando vehículos desde:', url);
     const response = await firstValueFrom(this.http.get<{data: Vehiculo[]}>(url));
     return response?.data || [];
@@ -87,59 +87,54 @@ export class ApiService {
 
   // Obtener ubicación actual de un vehículo
   async getUbicacionVehiculo(vehiculoId: string): Promise<UbicacionVehiculo> {
-    const response = await firstValueFrom(this.http.get<{data: UbicacionVehiculo}>(`${this.baseUrl}vehiculos/${vehiculoId}/ubicacion?profile_id=${this.profileId}&perfil_id=${this.profileId}`));
-    return response?.data;
+    // Endpoint no disponible en API pública actual
+    console.warn('API Service - getUbicacionVehiculo no soportado por API. Retornando mock.');
+    return Promise.resolve({
+      id: '', vehiculo_id: vehiculoId, latitud: 0, longitud: 0, velocidad: 0, direccion: 0, timestamp: new Date().toISOString(), created_at: new Date().toISOString()
+    });
   }
 
   // Obtener historial de ubicaciones de un vehículo
   async getHistorialUbicaciones(vehiculoId: string, fechaInicio?: string, fechaFin?: string): Promise<UbicacionVehiculo[]> {
-    let url = `${this.baseUrl}vehiculos/${vehiculoId}/historial?profile_id=${this.profileId}&perfil_id=${this.profileId}`;
-    
-    if (fechaInicio) {
-      url += `&fecha_inicio=${fechaInicio}`;
-    }
-    if (fechaFin) {
-      url += `&fecha_fin=${fechaFin}`;
-    }
-    
-    const response = await firstValueFrom(this.http.get<{data: UbicacionVehiculo[]}>(url));
-    return response?.data || [];
+    // Endpoint no disponible en API pública actual
+    console.warn('API Service - getHistorialUbicaciones no soportado por API. Retornando lista vacía.');
+    return Promise.resolve([]);
   }
 
   // --- CRUD de Vehículos ---
   // Crear vehículo
   async createVehiculo(payload: Partial<Vehiculo>): Promise<Vehiculo> {
-    const url = `${this.baseUrl}vehiculos?profile_id=${this.profileId}&perfil_id=${this.profileId}`;
+    const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
     console.log('API Service - Creando vehículo en:', url, payload);
     return await firstValueFrom(this.http.post<Vehiculo>(url, payload));
   }
 
   // Actualizar vehículo
   async updateVehiculo(id: string, payload: Partial<Vehiculo>): Promise<Vehiculo> {
-    const url = `${this.baseUrl}vehiculos/${id}?profile_id=${this.profileId}&perfil_id=${this.profileId}`;
+    const url = `${this.baseUrl}vehiculos/${id}?perfil_id=${this.profileId}`;
     console.log('API Service - Actualizando vehículo en:', url, payload);
     return await firstValueFrom(this.http.put<Vehiculo>(url, payload));
   }
 
   // Eliminar vehículo
   async deleteVehiculo(id: string): Promise<any> {
-    const url = `${this.baseUrl}vehiculos/${id}?profile_id=${this.profileId}&perfil_id=${this.profileId}`;
+    const url = `${this.baseUrl}vehiculos/${id}?perfil_id=${this.profileId}`;
     console.log('API Service - Eliminando vehículo en:', url);
     return await firstValueFrom(this.http.delete<any>(url));
   }
 
   // Obtener calles y direcciones
   async getCalles(): Promise<any[]> {
-    return await firstValueFrom(this.http.get<any[]>(`${this.baseUrl}calles?profile_id=${this.profileId}&perfil_id=${this.profileId}`));
+    return await firstValueFrom(this.http.get<any[]>(`${this.baseUrl}calles?perfil_id=${this.profileId}`));
   }
 
   // Buscar direcciones
   async buscarDirecciones(query: string): Promise<any[]> {
-    return await firstValueFrom(this.http.get<any[]>(`${this.baseUrl}buscar?q=${encodeURIComponent(query)}&profile_id=${this.profileId}&perfil_id=${this.profileId}`));
+    return await firstValueFrom(this.http.get<any[]>(`${this.baseUrl}buscar?q=${encodeURIComponent(query)}&perfil_id=${this.profileId}`));
   }
 
   // Obtener información de Buenaventura
   async getInfoBuenaventura(): Promise<any> {
-    return await firstValueFrom(this.http.get<any>(`${this.baseUrl}buenaventura?profile_id=${this.profileId}&perfil_id=${this.profileId}`));
+    return await firstValueFrom(this.http.get<any>(`${this.baseUrl}buenaventura?perfil_id=${this.profileId}`));
   }
 }

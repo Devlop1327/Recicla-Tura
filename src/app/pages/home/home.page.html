@@ -44,6 +44,14 @@
       </ion-card>
     </div>
 
+    <!-- Botón para abrir la página del mapa de Buenaventura -->
+    <div class="open-map-action" style="padding: 0 16px 16px;">
+      <ion-button expand="block" color="primary" (click)="goToMapa()">
+        <ion-icon slot="start" name="map-outline"></ion-icon>
+        Ver Mapa de Buenaventura
+      </ion-button>
+    </div>
+
     <!-- Mapa -->
     <div class="map-section">
       <div id="map" class="map-container">

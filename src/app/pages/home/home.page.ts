@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { ApiService, Ruta, Vehiculo, UbicacionVehiculo } from '../../services/api.service';
 import { SupabaseService } from '../../services/supabase.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-home',
@@ -26,7 +27,8 @@ export class HomePage implements OnInit, OnDestroy {
 
   constructor(
     private apiService: ApiService,
-    private supabaseService: SupabaseService
+    private supabaseService: SupabaseService,
+    private router: Router
   ) {}
 
   async ngOnInit() {
@@ -223,6 +225,16 @@ export class HomePage implements OnInit, OnDestroy {
 
   selectRuta(ruta: Ruta) {
     this.selectedRuta.set(ruta);
+  }
+
+  async goToMapa() {
+    try {
+      console.log('[Home] goToMapa clicked. Attempting navigate to /mapa');
+      const ok = await this.router.navigateByUrl('/mapa', { replaceUrl: false });
+      console.log('[Home] navigateByUrl("/mapa") result:', ok);
+    } catch (err) {
+      console.error('[Home] navigateByUrl("/mapa") error:', err);
+    }
   }
 
   getVehiculosDeRuta(rutaId: string): Vehiculo[] {

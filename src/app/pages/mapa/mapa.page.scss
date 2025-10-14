@@ -1,0 +1,16 @@
+ion-content {
+  /* avoid extra space that may hide part of the map */
+  --padding-bottom: 0;
+}
+
+#map {
+  /* make room for the controls list at the top */
+  height: calc(100vh - 260px);
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  #map {
+    height: calc(100vh - 180px);
+  }
+}

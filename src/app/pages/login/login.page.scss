@@ -1,5 +1,6 @@
 .login-content {
-  --background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  /* White background */
+  --background: #ffffff;
 }
 
 .login-container {
@@ -14,11 +15,12 @@
 .logo-section {
   text-align: center;
   margin-bottom: 40px;
-  color: white;
+  color: #2E8B1F; /* headings in green */
 
   ion-icon {
     font-size: 4rem;
     margin-bottom: 16px;
+    color: #43B02A; /* green icon on white bg */
   }
 
   h1 {
@@ -32,6 +34,7 @@
     font-size: 1.1rem;
     margin: 0;
     opacity: 0.9;
+    color: #4e5d4e; /* subtle dark for subtitle */
   }
 }
 
@@ -41,9 +44,11 @@
 
   ion-card {
     border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08), 0 0 0 1px rgba(126, 217, 87, 0.25);
     backdrop-filter: blur(10px);
-    background: rgba(255,255,255,0.95);
+    background: #ffffff;
+    /* Stronger apple-green border so the card outline doesn't get lost */
+    border: 2px solid #7ED957;
   }
 
   ion-item {
@@ -73,6 +78,12 @@
     height: 48px;
     font-weight: 600;
     font-size: 1.1rem;
+    /* Lighter apple green button styling */
+    --background: #7ED957; /* light green */
+    --background-activated: #69C84C;
+    --background-hover: #72d351;
+    --color: #ffffff;
+    --box-shadow: 0 6px 16px rgba(67, 176, 42, 0.35);
   }
 }
 
@@ -81,7 +92,8 @@
   margin-top: 20px;
 
   ion-button {
-    --color: var(--ion-color-primary);
+    /* Green link-like button */
+    --color: #2E8B1F;
     font-size: 0.9rem;
   }
 }
@@ -89,12 +101,12 @@
 .info-section {
   margin-top: 40px;
   text-align: center;
-  color: white;
+  color: #5f6b5f;
 
   p {
     margin: 8px 0;
     font-size: 0.95rem;
-    opacity: 0.8;
+    opacity: 0.9;
   }
 }
 
