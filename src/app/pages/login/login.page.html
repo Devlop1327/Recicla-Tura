@@ -1,0 +1,68 @@
+<ion-content class="login-content">
+  <div class="login-container">
+    <div class="logo-section">
+      <ion-icon name="recycle" size="large" color="primary"></ion-icon>
+      <h1>Recicla-Tura</h1>
+      <p>Rastrea tu basura en tiempo real</p>
+    </div>
+
+    <div class="form-section">
+      <ion-card>
+        <ion-card-content>
+          <form (ngSubmit)="isSignUp() ? signUp() : login()">
+            <ion-item>
+              <ion-label position="stacked">Email</ion-label>
+              <ion-input 
+                type="email" 
+                [value]="email()" 
+                (ionInput)="email.set($event.detail.value!)"
+                placeholder="tu@email.com"
+                required>
+              </ion-input>
+            </ion-item>
+
+            <ion-item>
+              <ion-label position="stacked">Contraseña</ion-label>
+              <ion-input 
+                type="password" 
+                [value]="password()" 
+                (ionInput)="password.set($event.detail.value!)"
+                placeholder="••••••••"
+                required>
+              </ion-input>
+            </ion-item>
+
+            <ion-button 
+              expand="block" 
+              type="submit" 
+              [disabled]="isLoading()"
+              class="login-button">
+              @if (isLoading()) {
+                <ion-spinner name="crescent"></ion-spinner>
+                <span style="margin-left: 8px;">Cargando...</span>
+              } @else {
+                {{ isSignUp() ? 'Registrarse' : 'Iniciar Sesión' }}
+              }
+            </ion-button>
+          </form>
+
+          <div class="toggle-section">
+            <ion-button 
+              fill="clear" 
+              size="small" 
+              (click)="toggleSignUp()">
+              {{ isSignUp() ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate' }}
+            </ion-button>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <div class="info-section">
+      <ion-text color="medium">
+        <p>📍 Buenaventura, Colombia</p>
+        <p>🚛 Rastrea el carro de basura en tiempo real</p>
+      </ion-text>
+    </div>
+  </div>
+</ion-content>

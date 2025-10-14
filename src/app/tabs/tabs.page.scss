@@ -1,1 +1,79 @@
+// Estilos para el menú lateral
+ion-menu {
+  --width: 300px;
+  --max-width: 85%;
+  --background: var(--ion-color-light);
+  
+  ion-content {
+    --background: var(--ion-color-light);
+    --padding-top: 20px;
+    --padding-bottom: 20px;
+  }
 
+  ion-list {
+    background: transparent;
+    padding: 0;
+  }
+
+  ion-item {
+    --background: transparent;
+    --padding-start: 20px;
+    --padding-end: 20px;
+    --min-height: 50px;
+    --border-radius: 8px;
+    margin: 8px 16px;
+    width: calc(100% - 32px);
+    
+    ion-icon {
+      color: var(--ion-color-primary);
+      margin-right: 15px;
+    }
+
+    &.activated {
+      --background: rgba(var(--ion-color-primary-rgb), 0.1);
+    }
+  }
+}
+
+// Estilos para el botón de menú
+ion-menu-button {
+  --color: var(--ion-color-light);
+  --background: transparent;
+  --background-hover: rgba(255, 255, 255, 0.1);
+  --background-focused: rgba(255, 255, 255, 0.1);
+  --background-activated: rgba(255, 255, 255, 0.1);
+  --padding-start: 8px;
+  --padding-end: 8px;
+}
+
+// Ajustes para el contenido principal
+ion-split-pane {
+  --side-min-width: 300px;
+  --side-max-width: 300px;
+}
+
+// Asegurar que el contenido se vea bien en móviles
+@media (max-width: 768px) {
+  ion-split-pane {
+    --side-max-width: 85%;
+    --side-min-width: 85%;
+  }
+  
+  ion-menu {
+    --width: 85%;
+  }
+}
+
+// Estilos para el botón de cerrar menú
+ion-buttons {
+  ion-button {
+    --padding-start: 8px;
+    --padding-end: 8px;
+  }
+}
+
+// Mejoras de accesibilidad
+ion-item:focus {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 2px;
+}

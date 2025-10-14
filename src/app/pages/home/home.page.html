@@ -1,0 +1,138 @@
+<ion-content>
+  <div class="home-container">
+    <!-- Header con información de la ruta seleccionada -->
+    <div class="header-section">
+      <ion-card>
+        <ion-card-content>
+          <div class="header-content">
+            <div class="route-info">
+              <h2>📍 Ruta de Recolección</h2>
+              @if (selectedRuta()) {
+                <h3>{{ selectedRuta()!.nombre }}</h3>
+                <p>{{ selectedRuta()!.descripcion }}</p>
+              } @else {
+                <p>Cargando rutas...</p>
+              }
+            </div>
+            <div class="status-indicator">
+              @if (usingApiData()) {
+                <ion-badge color="success">🌐 API Activa</ion-badge>
+              } @else {
+                <ion-badge color="warning">📱 Datos de Ejemplo</ion-badge>
+              }
+            </div>
+          </div>
+              @if (apiError()) {
+                <div class="api-error">
+                  <ion-text color="warning">
+                    <small>⚠️ {{ apiError() }}</small>
+                  </ion-text>
+                </div>
+              }
+              <div class="api-info">
+                <ion-text color="medium">
+                  <small>
+                    @if (usingApiData()) {
+                      ✅ Vehículos: API | Rutas: {{ rutas().length > 0 ? 'API' : 'Ejemplo' }}
+                    } @else {
+                      📱 Usando datos de ejemplo
+                    }
+                  </small>
+                </ion-text>
+              </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Mapa -->
+    <div class="map-section">
+      <div id="map" class="map-container">
+        <!-- Aquí se renderizará el mapa con Leaflet -->
+        <div class="map-placeholder">
+          <ion-icon name="map" size="large" color="medium"></ion-icon>
+          <p>Mapa de Buenaventura</p>
+          <p>📍 Coordenadas: {{ mapCenter().lat }}, {{ mapCenter().lng }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista de vehículos -->
+    <div class="vehicles-section">
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>🚛 Vehículos en Ruta</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          @if (isLoading()) {
+            <div class="loading-container">
+              <ion-spinner name="crescent"></ion-spinner>
+              <p>Cargando vehículos...</p>
+            </div>
+          } @else {
+            <div class="vehicles-list">
+              @for (vehiculo of getVehiculosDeRuta(selectedRuta()?.id || ''); track vehiculo.id) {
+                <ion-item class="vehicle-item">
+                  <ion-avatar slot="start">
+                    <ion-icon name="car" color="primary"></ion-icon>
+                  </ion-avatar>
+                  
+                  <ion-label>
+                    <h3>{{ vehiculo.placa }}</h3>
+                    <p>{{ vehiculo.modelo }} - {{ vehiculo.color }}</p>
+                    <p>Capacidad: {{ vehiculo.capacidad }} kg</p>
+                  </ion-label>
+
+                  <div slot="end" class="vehicle-status">
+                    @if (getUbicacionVehiculo(vehiculo.id)) {
+                      <div class="location-info">
+                        <p class="timestamp">
+                          📍 {{ formatTime(getUbicacionVehiculo(vehiculo.id)!.timestamp) }}
+                        </p>
+                        <p class="speed">
+                          🏃 {{ getUbicacionVehiculo(vehiculo.id)!.velocidad }} km/h
+                        </p>
+                        <ion-badge 
+                          [color]="getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'success' : 'warning'">
+                          {{ getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'En movimiento' : 'Detenido' }}
+                        </ion-badge>
+                      </div>
+                    } @else {
+                      <ion-badge color="danger">Sin ubicación</ion-badge>
+                    }
+                  </div>
+                </ion-item>
+              } @empty {
+                <div class="empty-state">
+                  <ion-icon name="car-outline" size="large" color="medium"></ion-icon>
+                  <p>No hay vehículos activos en esta ruta</p>
+                </div>
+              }
+            </div>
+          }
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Selector de rutas -->
+    <div class="routes-section">
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>🗺️ Rutas Disponibles</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="routes-list">
+            @for (ruta of rutas(); track ruta.id) {
+              <ion-chip 
+                [color]="selectedRuta()?.id === ruta.id ? 'primary' : 'medium'"
+                (click)="selectRuta(ruta)"
+                class="route-chip">
+                <ion-icon name="location" slot="start"></ion-icon>
+                <ion-label>{{ ruta.nombre }}</ion-label>
+              </ion-chip>
+            }
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+  </div>
+</ion-content>

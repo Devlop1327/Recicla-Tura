@@ -1,0 +1,184 @@
+<ion-content>
+  <div class="profile-container">
+    <!-- Header con avatar -->
+    <div class="header-section">
+      <ion-card>
+        <ion-card-content>
+          <div class="profile-header">
+            <div class="avatar-section">
+              <ion-avatar class="profile-avatar">
+                @if (profile()?.avatar_url) {
+                  <img [src]="profile()!.avatar_url" alt="Avatar">
+                } @else {
+                  <ion-icon name="person" size="large"></ion-icon>
+                }
+              </ion-avatar>
+              <div class="avatar-upload">
+                <input type="file" accept="image/*" id="avatarInput" (change)="onFileSelected($event)" />
+                <ion-button size="small" (click)="uploadAvatar()" [disabled]="!selectedFile || isLoading()">
+                  Subir Avatar
+                </ion-button>
+              </div>
+              <div class="avatar-info">
+                <h2>{{ profile()?.full_name || 'Usuario' }}</h2>
+                <p>{{ profile()?.email }}</p>
+                <ion-badge color="primary">Activo</ion-badge>
+              </div>
+            </div>
+            
+            <div class="header-actions">
+              <ion-button 
+                fill="clear" 
+                size="small" 
+                (click)="toggleEdit()">
+                <ion-icon name="create" slot="icon-only"></ion-icon>
+              </ion-button>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Información del perfil -->
+    <div class="info-section">
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>📋 Información Personal</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          @if (isLoading()) {
+            <div class="loading-container">
+              <ion-spinner name="crescent"></ion-spinner>
+              <p>Cargando perfil...</p>
+            </div>
+          } @else {
+            <div class="info-form">
+              <ion-item>
+                <ion-label position="stacked">Nombre Completo</ion-label>
+                @if (isEditing()) {
+                  <ion-input 
+                    [value]="fullName()" 
+                    (ionInput)="fullName.set($event.detail.value!)"
+                    placeholder="Tu nombre completo">
+                  </ion-input>
+                } @else {
+                  <ion-text>{{ profile()?.full_name || 'No especificado' }}</ion-text>
+                }
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Teléfono</ion-label>
+                @if (isEditing()) {
+                  <ion-input 
+                    type="tel"
+                    [value]="phone()" 
+                    (ionInput)="phone.set($event.detail.value!)"
+                    placeholder="Tu número de teléfono">
+                  </ion-input>
+                } @else {
+                  <ion-text>{{ profile()?.phone || 'No especificado' }}</ion-text>
+                }
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Dirección</ion-label>
+                @if (isEditing()) {
+                  <ion-textarea 
+                    [value]="address()" 
+                    (ionInput)="address.set($event.detail.value!)"
+                    placeholder="Tu dirección en Buenaventura"
+                    rows="3">
+                  </ion-textarea>
+                } @else {
+                  <ion-text>{{ profile()?.address || 'No especificada' }}</ion-text>
+                }
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Email</ion-label>
+                <ion-text color="medium">{{ profile()?.email }}</ion-text>
+              </ion-item>
+
+              <ion-item>
+                <ion-label position="stacked">Miembro desde</ion-label>
+                <ion-text color="medium">
+                  {{ getFechaCreacion() }}
+                </ion-text>
+              </ion-item>
+            </div>
+
+            @if (isEditing()) {
+              <div class="form-actions">
+                <ion-button 
+                  fill="outline" 
+                  color="medium" 
+                  (click)="toggleEdit()">
+                  Cancelar
+                </ion-button>
+                <ion-button 
+                  color="primary" 
+                  (click)="saveProfile()">
+                  Guardar
+                </ion-button>
+              </div>
+            }
+          }
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="stats-section">
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>📊 Estadísticas</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <ion-icon name="notifications" color="primary"></ion-icon>
+              <div class="stat-info">
+                <h3>12</h3>
+                <p>Notificaciones</p>
+              </div>
+            </div>
+            
+            <div class="stat-item">
+              <ion-icon name="time" color="success"></ion-icon>
+              <div class="stat-info">
+                <h3>5</h3>
+                <p>Días activo</p>
+              </div>
+            </div>
+            
+            <div class="stat-item">
+              <ion-icon name="location" color="warning"></ion-icon>
+              <div class="stat-info">
+                <h3>3</h3>
+                <p>Rutas seguidas</p>
+              </div>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Acciones -->
+    <div class="actions-section">
+      <ion-card>
+        <ion-card-content>
+          <div class="action-buttons">
+            <ion-button 
+              expand="block" 
+              fill="outline" 
+              color="medium"
+              (click)="signOut()">
+              <ion-icon name="log-out" slot="start"></ion-icon>
+              Cerrar Sesión
+            </ion-button>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+  </div>
+</ion-content>

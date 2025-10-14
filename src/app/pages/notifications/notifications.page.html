@@ -1,0 +1,114 @@
+<ion-content>
+  <div class="notifications-container">
+    <!-- Header con filtros -->
+    <div class="header-section">
+      <ion-card>
+        <ion-card-content>
+          <div class="header-content">
+            <div class="title-section">
+              <h2>🔔 Notificaciones</h2>
+              <p>{{ getCantidadNoLeidas() }} sin leer</p>
+            </div>
+            
+            <div class="filter-section">
+              <ion-segment 
+                [value]="filtro()" 
+                (ionChange)="onFiltroChange($event)">
+                <ion-segment-button value="todas">
+                  <ion-label>Todas</ion-label>
+                </ion-segment-button>
+                <ion-segment-button value="no-leidas">
+                  <ion-label>No leídas</ion-label>
+                </ion-segment-button>
+              </ion-segment>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Lista de notificaciones -->
+    <div class="notifications-section">
+      @if (isLoading()) {
+        <ion-card>
+          <ion-card-content>
+            <div class="loading-container">
+              <ion-spinner name="crescent"></ion-spinner>
+              <p>Cargando notificaciones...</p>
+            </div>
+          </ion-card-content>
+        </ion-card>
+      } @else {
+        <div class="notifications-list">
+          @for (notificacion of getNotificacionesFiltradas(); track notificacion.id) {
+            <ion-card 
+              class="notification-card"
+              [class.unread]="!notificacion.leida"
+              (click)="marcarComoLeida(notificacion)">
+              <ion-card-content>
+                <div class="notification-content">
+                  <div class="notification-icon">
+                    <ion-icon 
+                      [name]="getIconoTipo(notificacion.tipo)"
+                      [color]="getColorTipo(notificacion.tipo)">
+                    </ion-icon>
+                  </div>
+                  
+                  <div class="notification-info">
+                    <h3>{{ notificacion.titulo }}</h3>
+                    <p>{{ notificacion.mensaje }}</p>
+                    <div class="notification-meta">
+                      <span class="timestamp">{{ formatFecha(notificacion.created_at) }}</span>
+                      @if (!notificacion.leida) {
+                        <ion-badge color="primary" size="small">Nueva</ion-badge>
+                      }
+                    </div>
+                  </div>
+                  
+                  <div class="notification-actions">
+                    @if (!notificacion.leida) {
+                      <ion-button 
+                        fill="clear" 
+                        size="small"
+                        (click)="marcarComoLeida(notificacion); $event.stopPropagation()">
+                        <ion-icon name="checkmark" slot="icon-only"></ion-icon>
+                      </ion-button>
+                    }
+                  </div>
+                </div>
+              </ion-card-content>
+            </ion-card>
+          } @empty {
+            <ion-card>
+              <ion-card-content>
+                <div class="empty-state">
+                  <ion-icon name="notifications-off" size="large" color="medium"></ion-icon>
+                  <h3>No hay notificaciones</h3>
+                  <p>{{ filtro() === 'no-leidas' ? 'No tienes notificaciones sin leer' : 'No tienes notificaciones aún' }}</p>
+                </div>
+              </ion-card-content>
+            </ion-card>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Acciones -->
+    @if (!isLoading() && getCantidadNoLeidas() > 0) {
+      <div class="actions-section">
+        <ion-card>
+          <ion-card-content>
+            <ion-button 
+              expand="block" 
+              fill="outline" 
+              color="primary"
+              (click)="marcarTodasComoLeidas()">
+              <ion-icon name="checkmark-done" slot="start"></ion-icon>
+              Marcar todas como leídas
+            </ion-button>
+          </ion-card-content>
+        </ion-card>
+      </div>
+    }
+  </div>
+</ion-content>

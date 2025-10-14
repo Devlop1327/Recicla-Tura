@@ -1,0 +1,252 @@
+.profile-container {
+  padding: 16px;
+  background: var(--ion-color-light);
+  min-height: 100vh;
+}
+
+.header-section {
+  margin-bottom: 16px;
+
+  ion-card {
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  }
+
+  .profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .avatar-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    .profile-avatar {
+      --size: 60px;
+      background: var(--ion-color-primary-tint);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      ion-icon {
+        font-size: 2rem;
+        color: var(--ion-color-primary);
+      }
+    }
+
+    .avatar-info {
+      h2 {
+        margin: 0 0 4px 0;
+        font-size: 1.3rem;
+        font-weight: 600;
+      }
+
+      p {
+        margin: 0 0 8px 0;
+        color: var(--ion-color-medium);
+        font-size: 0.9rem;
+      }
+
+      ion-badge {
+        font-size: 0.8rem;
+      }
+    }
+  }
+
+  .header-actions {
+    ion-button {
+      --padding-start: 8px;
+      --padding-end: 8px;
+    }
+  }
+}
+
+.info-section {
+  margin-bottom: 16px;
+
+  ion-card {
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  }
+
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    color: var(--ion-color-medium);
+
+    ion-spinner {
+      margin-bottom: 16px;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.9rem;
+    }
+  }
+
+  .info-form {
+    ion-item {
+      --padding-start: 0;
+      --padding-end: 0;
+      margin-bottom: 16px;
+      --border-radius: 12px;
+      --background: transparent;
+
+      ion-label {
+        font-weight: 600;
+        color: var(--ion-color-dark);
+        margin-bottom: 8px;
+      }
+
+      ion-input, ion-textarea {
+        --padding-start: 12px;
+        --padding-end: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--ion-color-light);
+        margin-top: 8px;
+      }
+
+      ion-text {
+        font-size: 0.95rem;
+        color: var(--ion-color-dark);
+      }
+    }
+  }
+
+  .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    justify-content: flex-end;
+
+    ion-button {
+      --border-radius: 8px;
+      height: 40px;
+    }
+  }
+}
+
+.stats-section {
+  margin-bottom: 16px;
+
+  ion-card {
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 16px 8px;
+      border-radius: 12px;
+      background: var(--ion-color-light-tint);
+
+      ion-icon {
+        font-size: 2rem;
+        margin-bottom: 8px;
+      }
+
+      .stat-info {
+        h3 {
+          margin: 0 0 4px 0;
+          font-size: 1.5rem;
+          font-weight: bold;
+          color: var(--ion-color-dark);
+        }
+
+        p {
+          margin: 0;
+          font-size: 0.8rem;
+          color: var(--ion-color-medium);
+        }
+      }
+    }
+  }
+}
+
+.actions-section {
+  ion-card {
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  }
+
+  .action-buttons {
+    ion-button {
+      --border-radius: 12px;
+      height: 48px;
+      font-weight: 600;
+
+      ion-icon {
+        font-size: 1.2rem;
+      }
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .profile-container {
+    padding: 12px;
+  }
+
+  .avatar-section {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    
+    ion-button {
+      width: 100%;
+    }
+  }
+}
+
+// Animaciones
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header-section,
+.info-section,
+.stats-section,
+.actions-section {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.info-section {
+  animation-delay: 0.1s;
+}
+
+.stats-section {
+  animation-delay: 0.2s;
+}
+
+.actions-section {
+  animation-delay: 0.3s;
+}
