@@ -17,14 +17,7 @@ import {
   IonMenu,
   IonMenuToggle
 } from '@ionic/angular/standalone';
-
-// Servicio de autenticación temporal
-class AuthService {
-  async logout() {
-    console.log('Cerrando sesión...');
-    localStorage.removeItem('token');
-  }
-}
+import { SupabaseService } from '../../services/supabase.service';
 
 @Component({
   selector: 'app-menu',
@@ -91,7 +84,7 @@ class AuthService {
 export class MenuComponent {
   private router = inject(Router);
   private menuCtrl = inject(MenuController);
-  private authService = new AuthService();
+  private supabaseService = inject(SupabaseService);
   
   unreadNotifications = 0;
 
@@ -107,8 +100,8 @@ export class MenuComponent {
   async logout() {
     try {
       await this.menuCtrl.close();
-      await this.authService.logout();
-      this.router.navigate(['/login']);
+      await this.supabaseService.signOut();
+      await this.router.navigate(['/login']);
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }

@@ -22,6 +22,7 @@ import {
 } from '@ionic/angular/standalone';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
+import { SupabaseService } from '../services/supabase.service';
 
 @Component({
   selector: 'app-tabs',
@@ -54,6 +55,7 @@ import { Router, RouterModule } from '@angular/router';
 export class TabsPage implements OnInit {
   private router = inject(Router);
   private menuCtrl = inject(MenuController);
+  private supabaseService = inject(SupabaseService);
   
   currentTitle = 'Inicio';
   unreadNotifications = 0; // Conectar con tu servicio de notificaciones
@@ -79,7 +81,7 @@ export class TabsPage implements OnInit {
 
   private async setupMenu() {
     // Habilitar gestos de deslizar para abrir/cerrar el menú
-    const menu = await this.menuCtrl.get('main-content');
+    const menu = await this.menuCtrl.get('main-menu');
     if (menu) {
       menu.swipeGesture = true;
     }
@@ -94,7 +96,7 @@ export class TabsPage implements OnInit {
   async navigateTo(route: string) {
     // Cerrar el menú si estamos en móvil
     if (!this.isDesktop) {
-      await this.menuCtrl.close('main-content');
+      await this.menuCtrl.close('main-menu');
     }
     this.router.navigate(['/tabs', route]);
     this.updateTitle(this.getTitleFromRoute(route));
@@ -113,12 +115,12 @@ export class TabsPage implements OnInit {
 
   // Cerrar el menú
   async closeMenu() {
-    await this.menuCtrl.close('main-content');
+    await this.menuCtrl.close('main-menu');
   }
 
   // Alternar menú (para usar con botones personalizados si es necesario)
   async toggleMenu() {
-    const menu = await this.menuCtrl.get('main-content');
+    const menu = await this.menuCtrl.get('main-menu');
     if (menu) {
       menu.toggle();
     }
@@ -127,10 +129,9 @@ export class TabsPage implements OnInit {
   // Cerrar sesión
   async logout() {
     try {
-      await this.menuCtrl.close();
-      // Aquí iría la lógica de cierre de sesión
-      localStorage.removeItem('token');
-      this.router.navigate(['/login']);
+      await this.menuCtrl.close('main-menu');
+      await this.supabaseService.signOut();
+      await this.router.navigate(['/login']);
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }
