@@ -1,8 +1,7 @@
 <ion-content class="login-content">
   <div class="login-container">
     <div class="logo-section">
-      <ion-icon name="leaf-outline" size="large" color="primary"></ion-icon>
-      <h1>Recicla-Tura</h1>
+      <img src="assets/icon/Logo.png" alt="Logo" />
       <p>Rastrea tu basura en tiempo real</p>
     </div>
 
@@ -12,46 +11,45 @@
           <form (ngSubmit)="isSignUp() ? signUp() : login()">
             <ion-item>
               <ion-label position="stacked">Email</ion-label>
-              <ion-input 
-                type="email" 
-                [value]="email()" 
+              <ion-input
+                type="email"
+                [value]="email()"
                 (ionInput)="email.set($event.detail.value!)"
                 placeholder="tu@email.com"
-                required>
+                required
+              >
               </ion-input>
             </ion-item>
 
             <ion-item>
               <ion-label position="stacked">Contraseña</ion-label>
-              <ion-input 
-                type="password" 
-                [value]="password()" 
+              <ion-input
+                type="password"
+                [value]="password()"
                 (ionInput)="password.set($event.detail.value!)"
                 placeholder="••••••••"
-                required>
+                required
+              >
               </ion-input>
             </ion-item>
 
-            <ion-button 
-              expand="block" 
-              type="submit" 
+            <ion-button
+              expand="block"
+              type="submit"
               [disabled]="isLoading()"
-              class="login-button">
+              class="login-button"
+            >
               @if (isLoading()) {
-                <ion-spinner name="crescent"></ion-spinner>
-                <span style="margin-left: 8px;">Cargando...</span>
-              } @else {
-                {{ isSignUp() ? 'Registrarse' : 'Iniciar Sesión' }}
-              }
+              <ion-spinner name="crescent"></ion-spinner>
+              <span style="margin-left: 8px">Cargando...</span>
+              } @else { {{ isSignUp() ? 'Registrarse' : 'Iniciar Sesión' }} }
             </ion-button>
           </form>
 
           <div class="toggle-section">
-            <ion-button 
-              fill="clear" 
-              size="small" 
-              (click)="toggleSignUp()">
-              {{ isSignUp() ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate' }}
+            <ion-button fill="clear" size="small" (click)="toggleSignUp()">
+              {{ isSignUp() ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes
+              cuenta? Regístrate' }}
             </ion-button>
           </div>
         </ion-card-content>
