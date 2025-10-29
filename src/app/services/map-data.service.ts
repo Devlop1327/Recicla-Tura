@@ -2,6 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { SupabaseService } from './supabase.service';
 
 export type LineStringGeoJSON = {
   type: 'LineString';
@@ -54,18 +55,26 @@ export class MapDataService {
   loading = signal<boolean>(false);
   error = signal<string | null>(null);
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private supabase: SupabaseService) {}
 
   async loadCalles(): Promise<CalleApiItem[]> {
     try {
       this.loading.set(true);
       this.error.set(null);
-      console.log('[MapDataService] GET /calles');
+      // 1) Intentar desde Supabase primero
+      const sb = await this.loadCallesFromSupabase();
+      if (sb.length > 0) {
+        console.log('[MapDataService] Calles desde Supabase ->', sb.length);
+        this.calles.set(sb);
+        return sb;
+      }
+      // 2) Fallback al API externo
+      console.log('[MapDataService] GET /calles (fallback API externo)');
       const data = await firstValueFrom(
         this.http.get<{ data: CalleApiItem[] }>(`${this.baseUrl}/calles`)
       );
       const items = data?.data ?? [];
-      console.log('[MapDataService] /calles ->', items.length, 'items');
+      console.log('[MapDataService] /calles (API externo) ->', items.length, 'items');
       this.calles.set(items);
       return items;
     } catch (e: any) {
@@ -78,23 +87,110 @@ export class MapDataService {
     }
   }
 
+  private async loadCallesFromSupabase(): Promise<CalleApiItem[]> {
+    try {
+      const { data, error } = await this.supabase.getCalles();
+      if (error) {
+        console.warn('[MapDataService] Supabase getCalles error:', error);
+        return [];
+      }
+      const rows = Array.isArray(data) ? data : [];
+      const items: CalleApiItem[] = rows
+        .map((r: any) => {
+          const id = r.id ?? r.uuid ?? r.pk ?? undefined;
+          const nombre = r.nombre ?? r.name ?? '';
+          let shapeStr: string | null = null;
+          if (typeof r.shape === 'string') {
+            shapeStr = r.shape;
+          } else if (r.shape) {
+            try { shapeStr = JSON.stringify(r.shape); } catch { shapeStr = null; }
+          }
+          if (!id || !shapeStr) return null;
+          return { id, nombre, shape: shapeStr } as CalleApiItem;
+        })
+        .filter((x): x is CalleApiItem => !!x);
+      return items;
+    } catch (e) {
+      console.warn('[MapDataService] loadCallesFromSupabase exception:', e);
+      return [];
+    }
+  }
+
+  async createCalle(payload: { nombre: string; shape: any }): Promise<CalleApiItem | null> {
+    try {
+      const body: any = {
+        nombre: payload.nombre,
+        shape: payload.shape ? JSON.stringify(payload.shape) : undefined
+      };
+      console.log('[MapDataService] POST /calles =>', body);
+      const resp = await firstValueFrom(
+        this.http.post<{ data: CalleApiItem }>(`${this.baseUrl}/calles`, body)
+      );
+      const created: CalleApiItem | null = resp?.data ?? null;
+      if (created) {
+        const curr = this.calles();
+        this.calles.set([created, ...curr]);
+        return created;
+      }
+      return null;
+    } catch (e: any) {
+      console.warn('[MapDataService] POST /calles falló, intentando Supabase...', e?.message || e);
+      try {
+        const shapeStr = payload.shape ? JSON.stringify(payload.shape) : '';
+        const { data, error } = await this.supabase.createCalle({ nombre: payload.nombre, shape: shapeStr });
+        if (error) {
+          console.error('[MapDataService] Supabase createCalle error:', error);
+          return null;
+        }
+        const created: CalleApiItem = {
+          id: (data?.id ?? data?.uuid ?? data?.pk ?? '').toString(),
+          nombre: data?.nombre ?? payload.nombre,
+          shape: typeof data?.shape === 'string' ? data.shape : shapeStr
+        };
+        const curr = this.calles();
+        this.calles.set([created, ...curr]);
+        return created;
+      } catch (ex) {
+        console.error('[MapDataService] Fallback Supabase createCalle exception:', ex);
+        return null;
+      }
+    }
+  }
+
   // Rutas: listar por perfil, obtener detalle
   async loadRutas(): Promise<RutaApiItem[]> {
     try {
       this.loading.set(true);
       this.error.set(null);
       console.log('[MapDataService] GET /rutas?perfil_id=', this.profileId);
-      let data = await firstValueFrom(
-        this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`, {
-          params: { perfil_id: this.profileId }
-        })
-      );
+      let data: { data: RutaApiItem[] } | undefined;
+      try {
+        data = await firstValueFrom(
+          this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`, {
+            params: { perfil_id: this.profileId }
+          })
+        );
+      } catch (e: any) {
+        const status = e?.status;
+        console.warn('[MapDataService] Primer intento /rutas falló', { status, message: e?.message || e });
+        if (status && status >= 500) {
+          await new Promise((r) => setTimeout(r, 1500));
+          console.log('[MapDataService] Reintentando /rutas con perfil_id tras 1.5s...');
+          data = await firstValueFrom(
+            this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`, {
+              params: { perfil_id: this.profileId }
+            })
+          );
+        } else {
+          throw e;
+        }
+      }
       const items = data?.data ?? [];
       console.log('[MapDataService] /rutas (con perfil_id) ->', items.length, 'items');
       this.rutas.set(items);
       return items;
     } catch (e: any) {
-      console.warn('[MapDataService] /rutas con perfil_id falló, intentando sin parámetro...', e);
+      console.warn('[MapDataService] /rutas con perfil_id falló, intentando sin parámetro...', { status: e?.status, message: e?.message || e });
       try {
         const data2 = await firstValueFrom(
           this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`)

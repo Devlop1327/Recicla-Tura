@@ -2,7 +2,7 @@ import { Component, signal, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastController, LoadingController } from '@ionic/angular';
 
@@ -11,13 +11,14 @@ import { ToastController, LoadingController } from '@ionic/angular';
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule]
+  imports: [IonicModule, CommonModule, FormsModule, RouterLink]
 })
 export class LoginPage {
   email = signal('');
   password = signal('');
   isLoading = signal(false);
   isSignUp = signal(false);
+  role = signal<'admin' | 'conductor' | 'cliente'>('cliente');
 
   constructor(
     private supabaseService: SupabaseService,
@@ -34,8 +35,7 @@ export class LoginPage {
       const user = await this.supabaseService.getCurrentUser();
       console.log('LoginPage ngOnInit - usuario actual:', user);
       if (user) {
-        // Reemplazar la URL para evitar regresar al login
-        await this.router.navigateByUrl('/tabs/home', { replaceUrl: true });
+        await this.setRoleFromProfileAndNavigate(true);
       }
     } catch (error) {
       console.error('Error comprobando sesión en ngOnInit:', error);
@@ -71,18 +71,7 @@ export class LoginPage {
         // Forzar detección de cambios
         this.cdr.detectChanges();
         
-        // Usar router.navigateByUrl con replaceUrl para forzar la navegación
-        console.log('Navegando a /tabs/home');
-        this.router.navigateByUrl('/tabs/home', { replaceUrl: true }).then(success => {
-          console.log('Navegación exitosa:', success);
-          if (!success) {
-            // Si falla, usar window.location como respaldo
-            window.location.href = '/tabs/home';
-          }
-        }).catch(error => {
-          console.error('Error en navegación:', error);
-          window.location.href = '/tabs/home';
-        });
+        await this.setRoleFromProfileAndNavigate(true);
       }
     } catch (error) {
       this.showToast('Error inesperado', 'danger');
@@ -109,6 +98,14 @@ export class LoginPage {
         this.showToast('Error al registrarse: ' + error.message, 'danger');
       } else {
         this.showToast('¡Registro exitoso! Revisa tu email para confirmar tu cuenta.', 'success');
+        // Si hay sesión y un id de usuario, persistir el rol en profiles
+        try {
+          const user = await this.supabaseService.getCurrentUser();
+          if (user?.id) {
+            await this.supabaseService.ensureProfileWithRole(user.id, this.role());
+            this.supabaseService.setCurrentRole(this.role());
+          }
+        } catch {}
         this.isSignUp.set(false);
       }
     } catch (error) {
@@ -130,5 +127,28 @@ export class LoginPage {
       position: 'top'
     });
     await toast.present();
+  }
+
+  private async setRoleFromProfileAndNavigate(replaceUrl = true) {
+    try {
+      const user = await this.supabaseService.getCurrentUser();
+      let role: 'admin' | 'conductor' | 'cliente' = 'cliente';
+      if (user) {
+        const prof = await this.supabaseService.getProfile(user.id);
+        const data: any = (prof as any)?.data;
+        const r = data?.role || data?.rol || 'cliente';
+        if (r === 'admin' || r === 'conductor' || r === 'cliente') {
+          role = r;
+        }
+      }
+      this.supabaseService.setCurrentRole(role);
+      // Redirigir según rol
+      const target = role === 'admin' ? '/admin' : '/mapa';
+      console.log('Navegando según rol:', role, '=>', target);
+      await this.router.navigateByUrl(target, { replaceUrl });
+    } catch (err) {
+      console.error('Error determinando rol/navegación, navegando por defecto:', err);
+      await this.router.navigateByUrl('/mapa', { replaceUrl });
+    }
   }
 }

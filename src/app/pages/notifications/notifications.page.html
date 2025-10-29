@@ -1,71 +1,75 @@
-<ion-content>
-  <div class="notifications-container">
+ <ion-content>
+  <ion-grid class="notifications-container">
     <!-- Header con filtros -->
-    <div class="header-section">
-      <ion-card>
-        <ion-card-content>
-          <div class="header-content">
-            <div class="title-section">
-              <h2>🔔 Notificaciones</h2>
-              <p>{{ getCantidadNoLeidas() }} sin leer</p>
-            </div>
-            
-            <div class="filter-section">
-              <ion-segment 
-                [value]="filtro()" 
-                (ionChange)="onFiltroChange($event)">
-                <ion-segment-button value="todas">
-                  <ion-label>Todas</ion-label>
-                </ion-segment-button>
-                <ion-segment-button value="no-leidas">
-                  <ion-label>No leídas</ion-label>
-                </ion-segment-button>
-              </ion-segment>
-            </div>
-          </div>
-        </ion-card-content>
-      </ion-card>
-    </div>
+    <ion-row class="header-section">
+      <ion-col size="12">
+        <ion-card>
+          <ion-card-content>
+            <ion-row class="header-content" justify-content-between>
+              <ion-col class="title-section">
+                <ion-text>🔔 Notificaciones</ion-text>
+                <ion-text color="medium">{{ getCantidadNoLeidas() }} sin leer</ion-text>
+              </ion-col>
+              <ion-col class="filter-section" size="auto">
+                <ion-segment 
+                  [value]="filtro()" 
+                  (ionChange)="onFiltroChange($event)">
+                  <ion-segment-button value="todas">
+                    <ion-label>Todas</ion-label>
+                  </ion-segment-button>
+                  <ion-segment-button value="no-leidas">
+                    <ion-label>No leídas</ion-label>
+                  </ion-segment-button>
+                </ion-segment>
+              </ion-col>
+            </ion-row>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
 
     <!-- Lista de notificaciones -->
-    <div class="notifications-section">
+    <ion-row class="notifications-section">
+      <ion-col size="12">
       @if (isLoading()) {
         <ion-card>
           <ion-card-content>
-            <div class="loading-container">
-              <ion-spinner name="crescent"></ion-spinner>
-              <p>Cargando notificaciones...</p>
-            </div>
+            <ion-row class="loading-container" justify-content-center>
+              <ion-col size="12" class="ion-text-center">
+                <ion-spinner name="crescent"></ion-spinner>
+                <ion-text class="ion-margin-start">Cargando notificaciones...</ion-text>
+              </ion-col>
+            </ion-row>
           </ion-card-content>
         </ion-card>
       } @else {
-        <div class="notifications-list">
+        <ion-list class="notifications-list">
           @for (notificacion of getNotificacionesFiltradas(); track notificacion.id) {
             <ion-card 
               class="notification-card"
               [class.unread]="!notificacion.leida"
               (click)="marcarComoLeida(notificacion)">
               <ion-card-content>
-                <div class="notification-content">
-                  <div class="notification-icon">
+                <ion-row class="notification-content" align-items-center>
+                  <ion-col class="notification-icon" size="auto">
                     <ion-icon 
                       [name]="getIconoTipo(notificacion.tipo)"
                       [color]="getColorTipo(notificacion.tipo)">
                     </ion-icon>
-                  </div>
-                  
-                  <div class="notification-info">
-                    <h3>{{ notificacion.titulo }}</h3>
-                    <p>{{ notificacion.mensaje }}</p>
-                    <div class="notification-meta">
-                      <span class="timestamp">{{ formatFecha(notificacion.created_at) }}</span>
+                  </ion-col>
+                  <ion-col class="notification-info">
+                    <ion-text>{{ notificacion.titulo }}</ion-text>
+                    <ion-text color="medium">{{ notificacion.mensaje }}</ion-text>
+                    <ion-row class="notification-meta" align-items-center>
+                      <ion-col class="timestamp">{{ formatFecha(notificacion.created_at) }}</ion-col>
                       @if (!notificacion.leida) {
-                        <ion-badge color="primary" size="small">Nueva</ion-badge>
+                        <ion-col size="auto">
+                          <ion-badge color="primary" size="small">Nueva</ion-badge>
+                        </ion-col>
                       }
-                    </div>
-                  </div>
-                  
-                  <div class="notification-actions">
+                    </ion-row>
+                  </ion-col>
+                  <ion-col class="notification-actions" size="auto">
                     @if (!notificacion.leida) {
                       <ion-button 
                         fill="clear" 
@@ -74,41 +78,47 @@
                         <ion-icon name="checkmark" slot="icon-only"></ion-icon>
                       </ion-button>
                     }
-                  </div>
-                </div>
+                  </ion-col>
+                </ion-row>
               </ion-card-content>
             </ion-card>
           } @empty {
             <ion-card>
               <ion-card-content>
-                <div class="empty-state">
-                  <ion-icon name="notifications-off" size="large" color="medium"></ion-icon>
-                  <h3>No hay notificaciones</h3>
-                  <p>{{ filtro() === 'no-leidas' ? 'No tienes notificaciones sin leer' : 'No tienes notificaciones aún' }}</p>
-                </div>
+                <ion-row class="empty-state" justify-content-center>
+                  <ion-col size="12" class="ion-text-center">
+                    <ion-icon name="notifications-off" size="large" color="medium"></ion-icon>
+                    <ion-text>No hay notificaciones</ion-text>
+                    <ion-text color="medium">{{ filtro() === 'no-leidas' ? 'No tienes notificaciones sin leer' : 'No tienes notificaciones aún' }}</ion-text>
+                  </ion-col>
+                </ion-row>
               </ion-card-content>
             </ion-card>
           }
-        </div>
+        </ion-list>
       }
-    </div>
+      </ion-col>
+    </ion-row>
 
     <!-- Acciones -->
     @if (!isLoading() && getCantidadNoLeidas() > 0) {
-      <div class="actions-section">
-        <ion-card>
-          <ion-card-content>
-            <ion-button 
-              expand="block" 
-              fill="outline" 
-              color="primary"
-              (click)="marcarTodasComoLeidas()">
-              <ion-icon name="checkmark-done" slot="start"></ion-icon>
-              Marcar todas como leídas
-            </ion-button>
-          </ion-card-content>
-        </ion-card>
-      </div>
+      <ion-row class="actions-section">
+        <ion-col size="12">
+          <ion-card>
+            <ion-card-content>
+              <ion-button 
+                expand="block" 
+                fill="outline" 
+                color="primary"
+                (click)="marcarTodasComoLeidas()">
+                <ion-icon name="checkmark-done" slot="start"></ion-icon>
+                Marcar todas como leídas
+              </ion-button>
+            </ion-card-content>
+          </ion-card>
+        </ion-col>
+      </ion-row>
     }
-  </div>
+  </ion-grid>
 </ion-content>
+

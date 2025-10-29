@@ -2,7 +2,9 @@ import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { ApiService, Ruta, Vehiculo, UbicacionVehiculo } from '../../services/api.service';
+import { MapDataService } from '../../services/map-data.service';
 import { SupabaseService } from '../../services/supabase.service';
+import { SyncService } from '../../services/sync.service';
 import { Router } from '@angular/router';
 
 @Component({
@@ -17,6 +19,8 @@ export class HomePage implements OnInit, OnDestroy {
   vehiculos = signal<Vehiculo[]>([]);
   ubicacionesVehiculos = signal<UbicacionVehiculo[]>([]);
   isLoading = signal(true);
+  isImporting = signal(false);
+  importMessage = signal<string | null>(null);
   selectedRuta = signal<Ruta | null>(null);
   mapCenter = signal({ lat: 3.8833, lng: -77.0167 });
   mapZoom = signal(13);
@@ -28,13 +32,35 @@ export class HomePage implements OnInit, OnDestroy {
   constructor(
     private apiService: ApiService,
     private supabaseService: SupabaseService,
-    private router: Router
+    private router: Router,
+    private mapData: MapDataService,
+    private sync: SyncService
   ) {}
 
   async ngOnInit() {
     console.log('HomePage - Inicializando...');
     await this.loadData();
     this.startRealTimeUpdates();
+  }
+
+  // Importar calles desde la API pública a Supabase (tabla 'calles')
+  async importCallesToSupabase() {
+    try {
+      this.isImporting.set(true);
+      this.importMessage.set(null);
+      const { inserted, error } = await this.sync.syncCallesFromApi();
+      if (error) {
+        console.error('[Home] importCallesToSupabase error:', error);
+        this.importMessage.set('Error al importar calles a Supabase');
+      } else {
+        this.importMessage.set(`Importación de calles completada: ${inserted} registros`);
+      }
+    } catch (e) {
+      console.error('[Home] importCallesToSupabase exception:', e);
+      this.importMessage.set('Excepción durante la importación de calles');
+    } finally {
+      this.isImporting.set(false);
+    }
   }
 
   ngOnDestroy() {
@@ -77,8 +103,26 @@ export class HomePage implements OnInit, OnDestroy {
       } catch (err) {
         console.error('Error cargando rutas desde API:', err);
         apiErrors.push('Error cargando rutas');
-        // Cargar rutas de ejemplo si falla la API
-        this.loadRutasEjemplo();
+        // Intentar cargar rutas desde Supabase como fallback
+        try {
+          console.log('HomePage - Intentando cargar rutas desde Supabase como fallback...');
+          const { data: rutasSb, error: rutasSbError } = await this.supabaseService.getRutas();
+          if (rutasSbError) {
+            console.error('HomePage - Error cargando rutas desde Supabase:', rutasSbError);
+            // Cargar rutas de ejemplo si también falla Supabase
+            this.loadRutasEjemplo();
+          } else {
+            console.log('HomePage - Rutas cargadas desde Supabase:', rutasSb);
+            this.rutas.set((rutasSb as any) || []);
+            if ((rutasSb as any)?.length > 0) {
+              this.selectedRuta.set((rutasSb as any)[0]);
+            }
+            apiSuccess = true;
+          }
+        } catch (fallbackErr) {
+          console.error('HomePage - Fallback Supabase rutas lanzó excepción:', fallbackErr);
+          this.loadRutasEjemplo();
+        }
       }
 
       // Después de cargar intentamos reflejar el estado
@@ -156,26 +200,27 @@ export class HomePage implements OnInit, OnDestroy {
       }
     ];
 
+    const now = new Date().toISOString();
     const vehiculosEjemplo: Vehiculo[] = [
       {
         id: '1',
         placa: 'ABC-123',
         modelo: '2020',
-        color: 'Blanco',
-        capacidad: 5000,
-        estado: 'activo',
-        ruta_id: '1',
-        created_at: new Date().toISOString()
+        marca: 'Ejemplo',
+        activo: true,
+        perfil_id: 'demo',
+        created_at: now,
+        updated_at: now
       },
       {
         id: '2',
         placa: 'XYZ-789',
         modelo: '2021',
-        color: 'Azul',
-        capacidad: 3000,
-        estado: 'activo',
-        ruta_id: '2',
-        created_at: new Date().toISOString()
+        marca: 'Demo',
+        activo: false,
+        perfil_id: 'demo',
+        created_at: now,
+        updated_at: now
       }
     ];
 
@@ -237,8 +282,8 @@ export class HomePage implements OnInit, OnDestroy {
     }
   }
 
-  getVehiculosDeRuta(rutaId: string): Vehiculo[] {
-    return this.vehiculos().filter(v => v.ruta_id === rutaId && v.estado === 'activo');
+  getVehiculosDeRuta(_rutaId: string): Vehiculo[] {
+    return this.vehiculos().filter(v => !!(v as any).activo);
   }
 
   getUbicacionVehiculo(vehiculoId: string): UbicacionVehiculo | undefined {
@@ -263,5 +308,41 @@ export class HomePage implements OnInit, OnDestroy {
               Math.sin(dLng/2) * Math.sin(dLng/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
+  }
+
+  // Importar rutas desde la API pública a Supabase (tabla 'rutas')
+  async importRutasToSupabase() {
+    try {
+      this.isImporting.set(true);
+      this.importMessage.set(null);
+      // Cargar rutas desde API externa
+      const apiRutas = await this.mapData.loadRutas();
+      const rows = (apiRutas || []).map((r: any) => {
+        const nombre = r.nombre || r.nombre_ruta || 'Sin nombre';
+        const descripcion = r.descripcion || r.descripcion_ruta || null;
+        // Algunas APIs retornan shape como string JSON; respetar si existe
+        const shape = r.shape ? r.shape : (r.shape_ruta ? r.shape_ruta : null);
+        return {
+          id: r.id,
+          nombre,
+          descripcion,
+          shape,
+          activa: true
+        };
+      });
+      const { data, error } = await this.supabaseService.upsertRutas(rows);
+      if (error) {
+        console.error('[Home] importRutasToSupabase error:', error);
+        this.importMessage.set('Error al importar rutas a Supabase');
+      } else {
+        const count = Array.isArray(data) ? data.length : rows.length;
+        this.importMessage.set(`Importación completada: ${count} rutas`);
+      }
+    } catch (e) {
+      console.error('[Home] importRutasToSupabase exception:', e);
+      this.importMessage.set('Excepción durante la importación');
+    } finally {
+      this.isImporting.set(false);
+    }
   }
 }

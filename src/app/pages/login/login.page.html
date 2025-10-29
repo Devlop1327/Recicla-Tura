@@ -1,14 +1,16 @@
-<ion-content class="login-content">
-  <div class="login-container">
-    <div class="logo-section">
-      <img src="assets/icon/Logo.png" alt="Logo" />
-      <p>Rastrea tu basura en tiempo real</p>
-    </div>
+ <ion-content class="login-content">
+  <ion-grid class="login-container">
+    <ion-row class="logo-section" justify-content-center>
+      <ion-col size="12" class="ion-text-center">
+        <ion-img src="assets/icon/Logo.png" alt="Logo"></ion-img>
+        <ion-text>Rastrea tu basura en tiempo real</ion-text>
+      </ion-col>
+    </ion-row>
 
-    <div class="form-section">
+    <ion-row class="form-section" justify-content-center>
       <ion-card>
         <ion-card-content>
-          <form (ngSubmit)="isSignUp() ? signUp() : login()">
+          <ion-list>
             <ion-item>
               <ion-label position="stacked">Email</ion-label>
               <ion-input
@@ -16,10 +18,21 @@
                 [value]="email()"
                 (ionInput)="email.set($event.detail.value!)"
                 placeholder="tu@email.com"
-                required
-              >
+                required>
               </ion-input>
             </ion-item>
+
+            @if (isSignUp()) {
+              <ion-item>
+                <ion-label position="stacked">Rol</ion-label>
+                <ion-select interface="popover" placeholder="Selecciona tu rol"
+                            [value]="role()" (ionChange)="role.set($event.detail.value)">
+                  <ion-select-option value="cliente">Cliente (solo visualización)</ion-select-option>
+                  <ion-select-option value="conductor">Conductor (inicia recorridos)</ion-select-option>
+                  <ion-select-option value="admin">Admin (CRUD rutas y calles)</ion-select-option>
+                </ion-select>
+              </ion-item>
+            }
 
             <ion-item>
               <ion-label position="stacked">Contraseña</ion-label>
@@ -28,39 +41,40 @@
                 [value]="password()"
                 (ionInput)="password.set($event.detail.value!)"
                 placeholder="••••••••"
-                required
-              >
+                required>
               </ion-input>
             </ion-item>
 
             <ion-button
               expand="block"
-              type="submit"
               [disabled]="isLoading()"
               class="login-button"
-            >
+              (click)="isSignUp() ? signUp() : login()">
               @if (isLoading()) {
-              <ion-spinner name="crescent"></ion-spinner>
-              <span style="margin-left: 8px">Cargando...</span>
+                <ion-spinner name="crescent"></ion-spinner>
+                <ion-text style="margin-left: 8px">Cargando...</ion-text>
               } @else { {{ isSignUp() ? 'Registrarse' : 'Iniciar Sesión' }} }
             </ion-button>
-          </form>
+          </ion-list>
 
-          <div class="toggle-section">
-            <ion-button fill="clear" size="small" (click)="toggleSignUp()">
-              {{ isSignUp() ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes
-              cuenta? Regístrate' }}
-            </ion-button>
-          </div>
+          <ion-row class="toggle-section" justify-content-center>
+            <ion-col size="12" class="ion-text-center">
+              <ion-button fill="clear" size="small" (click)="toggleSignUp()">
+                {{ isSignUp() ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate' }}
+              </ion-button>
+            </ion-col>
+          </ion-row>
         </ion-card-content>
       </ion-card>
-    </div>
+    </ion-row>
 
-    <div class="info-section">
-      <ion-text color="medium">
-        <p>📍 Buenaventura, Colombia</p>
-        <p>🚛 Rastrea el carro de basura en tiempo real</p>
-      </ion-text>
-    </div>
-  </div>
+    <ion-row class="info-section" justify-content-center>
+      <ion-col size="12" class="ion-text-center">
+        <ion-text color="medium" class="ion-text-center">📍 Buenaventura, Colombia</ion-text>
+        <ion-text color="medium" class="ion-text-center">🚛 Rastrea el carro de basura en tiempo real</ion-text>
+        <ion-button class="ion-margin-top" fill="clear" size="small" routerLink="/recover">¿Olvidaste tu contraseña?</ion-button>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
 </ion-content>
+

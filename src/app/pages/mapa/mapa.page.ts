@@ -4,6 +4,7 @@ import { IonicModule } from '@ionic/angular';
 import { HttpClientModule } from '@angular/common/http';
 import * as L from 'leaflet';
 import { MapDataService, RutaApiItem, RecorridoApiItem, PosicionApiItem } from '../../services/map-data.service';
+import { SupabaseService } from '../../services/supabase.service';
 import { environment } from '../../../environments/environment';
 
 @Component({
@@ -26,8 +27,13 @@ export class MapaPage implements AfterViewInit {
   selectedRutaId = signal<string | null>(null);
   activeRecorrido = signal<RecorridoApiItem | null>(null);
   readonly supportsRecorridos = environment.api.supportsRecorridos ?? false;
+  userRole = signal<'admin' | 'conductor' | 'cliente' | null>(null);
+  editing = signal(false);
+  private draftPoints: L.LatLng[] = [];
+  private draftMarkers: L.Marker[] = [];
+  private draftPolyline: L.Polyline | null = null;
 
-  constructor(private mapData: MapDataService) { }
+  constructor(private mapData: MapDataService, private supabaseSvc: SupabaseService) { }
 
   ngAfterViewInit() {
     this.initMap();
@@ -38,6 +44,7 @@ export class MapaPage implements AfterViewInit {
     // Load data layers
     this.loadCallesLayer();
     this.loadRutasLayer();
+    this.loadUserRole();
   }
 
   private initMap(): void {
@@ -68,9 +75,33 @@ export class MapaPage implements AfterViewInit {
     if (this.posicionesTimer) {
       clearInterval(this.posicionesTimer);
     }
+    if (this.map && this.onMapClick) {
+      this.map.off('click', this.onMapClick as any);
+    }
+    this.clearDraft();
     if (this.map) {
       this.map.remove();
       this.map = null;
+    }
+  }
+
+  private async loadUserRole() {
+    try {
+      const user = await this.supabaseSvc.getCurrentUser();
+      if (!user) {
+        this.userRole.set('cliente');
+        return;
+      }
+      const prof = await this.supabaseSvc.getProfile(user.id);
+      const data: any = (prof as any)?.data;
+      const role = data?.role || data?.rol || 'cliente';
+      if (role === 'admin' || role === 'conductor' || role === 'cliente') {
+        this.userRole.set(role);
+      } else {
+        this.userRole.set('cliente');
+      }
+    } catch {
+      this.userRole.set('cliente');
     }
   }
 
@@ -188,6 +219,97 @@ export class MapaPage implements AfterViewInit {
     }
   }
 
+  toggleEditing() {
+    if (this.userRole() !== 'admin') return;
+    const next = !this.editing();
+    this.editing.set(next);
+    if (!this.map) return;
+    if (next) {
+      this.map.on('click', this.onMapClick as any);
+    } else {
+      this.map.off('click', this.onMapClick as any);
+    }
+  }
+
+  private onMapClick = (e: L.LeafletMouseEvent) => {
+    if (!this.map || !this.editing()) return;
+    this.draftPoints.push(e.latlng);
+    if (this.draftPolyline) {
+      this.draftPolyline.setLatLngs(this.draftPoints);
+    } else {
+      this.draftPolyline = L.polyline(this.draftPoints, { color: '#e91e63', weight: 3 }).addTo(this.map);
+    }
+    const m = L.marker(e.latlng, { title: `Punto ${this.draftPoints.length}` });
+    m.addTo(this.map as L.Map);
+    this.draftMarkers.push(m);
+  };
+
+  undoLast() {
+    if (!this.map || this.draftPoints.length === 0) return;
+    const lastMarker = this.draftMarkers.pop();
+    if (lastMarker) {
+      (this.map as L.Map).removeLayer(lastMarker);
+    }
+    this.draftPoints.pop();
+    if (this.draftPolyline) {
+      this.draftPolyline.setLatLngs(this.draftPoints);
+      if (this.draftPoints.length === 0) {
+        (this.map as L.Map).removeLayer(this.draftPolyline);
+        this.draftPolyline = null;
+      }
+    }
+  }
+
+  clearDraft() {
+    if (this.map) {
+      for (const m of this.draftMarkers) {
+        (this.map as L.Map).removeLayer(m);
+      }
+      if (this.draftPolyline) {
+        (this.map as L.Map).removeLayer(this.draftPolyline);
+      }
+    }
+    this.draftMarkers = [];
+    this.draftPoints = [];
+    this.draftPolyline = null;
+  }
+
+  draftCount(): number {
+    return this.draftPoints.length;
+  }
+
+  async saveDraftAsRuta() {
+    if (this.userRole() !== 'admin') return;
+    if (this.draftPoints.length < 2) return;
+    const coords: [number, number][] = this.draftPoints.map(p => [p.lng, p.lat]);
+    const shape: GeoJSON.LineString = { type: 'LineString', coordinates: coords } as any;
+    const calles = this.mapData.calles();
+    const callesIds = (calles || []).slice(0, 10).map(c => c.id);
+    const nombre = prompt('Nombre de la ruta:') || `Ruta ${new Date().toLocaleString()}`;
+    const descripcion = '';
+    const created = await this.mapData.createRuta({ nombre, descripcion, shape, callesIds });
+    if (created) {
+      await this.loadRutasLayer();
+      this.selectedRutaId.set(created.id);
+      this.clearDraft();
+      if (this.editing()) this.toggleEditing();
+    }
+  }
+
+  async saveDraftAsCalle() {
+    if (this.userRole() !== 'admin') return;
+    if (this.draftPoints.length < 2) return;
+    const coords: [number, number][] = this.draftPoints.map(p => [p.lng, p.lat]);
+    const shape: GeoJSON.LineString = { type: 'LineString', coordinates: coords } as any;
+    const nombre = prompt('Nombre de la calle:') || `Calle ${new Date().toLocaleString()}`;
+    const created = await this.mapData.createCalle({ nombre, shape });
+    if (created) {
+      await this.loadCallesLayer();
+      this.clearDraft();
+      if (this.editing()) this.toggleEditing();
+    }
+  }
+
   async createExampleRuta() {
     // Coordenadas simples alrededor del centro de Buenaventura
     const coords: [number, number][] = [
@@ -217,6 +339,7 @@ export class MapaPage implements AfterViewInit {
   }
 
   async onStartRecorrido() {
+    if (this.userRole() !== 'conductor') return;
     const rutaId = this.selectedRutaId();
     if (!rutaId) return;
     const rec = await this.mapData.iniciarRecorrido(rutaId);
@@ -227,6 +350,7 @@ export class MapaPage implements AfterViewInit {
   }
 
   async onFinishRecorrido() {
+    if (this.userRole() !== 'conductor') return;
     const rec = this.activeRecorrido();
     if (!rec) return;
     const ok = await this.mapData.finalizarRecorrido(rec.id);

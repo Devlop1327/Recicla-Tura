@@ -1,0 +1,36 @@
+<ion-content class="recover-content">
+  <ion-grid class="recover-container">
+    <ion-row class="logo-section" justify-content-center>
+      <ion-col size="12" class="ion-text-center">
+        <ion-img src="assets/icon/Logo.png" alt="Logo"></ion-img>
+        <ion-text>Recuperar contraseña</ion-text>
+      </ion-col>
+    </ion-row>
+
+    <ion-card>
+      <ion-card-content>
+        <ion-list>
+          <ion-item>
+            <ion-label position="stacked">Email</ion-label>
+            <ion-input
+              type="email"
+              [value]="email()"
+              (ionInput)="email.set($event.detail.value!)"
+              placeholder="tu@email.com"
+              required>
+            </ion-input>
+          </ion-item>
+
+          <ion-button expand="block" [disabled]="isLoading()" (click)="sendRecovery()">
+            @if (isLoading()) {
+              <ion-spinner name="crescent"></ion-spinner>
+              <ion-text class="ion-margin-start">Enviando...</ion-text>
+            } @else { Enviar enlace }
+          </ion-button>
+        </ion-list>
+
+        <ion-button fill="clear" expand="block" routerLink="/login">Volver a iniciar sesión</ion-button>
+      </ion-card-content>
+    </ion-card>
+  </ion-grid>
+</ion-content>

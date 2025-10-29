@@ -14,6 +14,12 @@ export interface Ruta {
   updated_at: string;
 }
 
+export interface Calle {
+  id: string;
+  nombre: string;
+  shape: string; // GeoJSON serializado
+}
+
 export interface PuntoRuta {
   id: string;
   ruta_id: string;
@@ -29,12 +35,12 @@ export interface PuntoRuta {
 export interface Vehiculo {
   id: string;
   placa: string;
-  modelo: string;
-  color: string;
-  capacidad: number;
-  estado: 'activo' | 'inactivo' | 'mantenimiento';
-  ruta_id: string;
+  modelo: string | null;
+  marca: string | null;
+  activo: boolean;
+  perfil_id: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface UbicacionVehiculo {
@@ -61,8 +67,15 @@ export class ApiService {
   async getRutas(): Promise<Ruta[]> {
     const url = `${this.baseUrl}rutas?perfil_id=${this.profileId}`;
     console.log('API Service - Solicitando rutas desde:', url);
-    const response = await firstValueFrom(this.http.get<{data: Ruta[]}>(url));
-    return response?.data || [];
+    const response = await firstValueFrom(this.http.get<any>(url));
+    // Soportar respuesta paginada { data: Ruta[], ... } o directa Ruta[]
+    if (Array.isArray(response)) {
+      return response as Ruta[];
+    }
+    if (response && Array.isArray(response.data)) {
+      return response.data as Ruta[];
+    }
+    return [];
   }
 
   // Obtener una ruta específica
@@ -103,14 +116,14 @@ export class ApiService {
 
   // --- CRUD de Vehículos ---
   // Crear vehículo
-  async createVehiculo(payload: Partial<Vehiculo>): Promise<Vehiculo> {
+  async createVehiculo(payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>): Promise<Vehiculo> {
     const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
     console.log('API Service - Creando vehículo en:', url, payload);
     return await firstValueFrom(this.http.post<Vehiculo>(url, payload));
   }
 
   // Actualizar vehículo
-  async updateVehiculo(id: string, payload: Partial<Vehiculo>): Promise<Vehiculo> {
+  async updateVehiculo(id: string, payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>): Promise<Vehiculo> {
     const url = `${this.baseUrl}vehiculos/${id}?perfil_id=${this.profileId}`;
     console.log('API Service - Actualizando vehículo en:', url, payload);
     return await firstValueFrom(this.http.put<Vehiculo>(url, payload));
@@ -123,9 +136,14 @@ export class ApiService {
     return await firstValueFrom(this.http.delete<any>(url));
   }
 
-  // Obtener calles y direcciones
-  async getCalles(): Promise<any[]> {
-    return await firstValueFrom(this.http.get<any[]>(`${this.baseUrl}calles?perfil_id=${this.profileId}`));
+  // Obtener calles
+  async getCalles(): Promise<Calle[]> {
+    const url = `${this.baseUrl}calles?perfil_id=${this.profileId}`;
+    const resp = await firstValueFrom(this.http.get<any>(url));
+    // Soporta formato [{...}] o { data: [{...}] }
+    if (Array.isArray(resp)) return resp as Calle[];
+    if (resp && Array.isArray(resp.data)) return resp.data as Calle[];
+    return [];
   }
 
   // Buscar direcciones

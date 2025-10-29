@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
@@ -7,6 +7,7 @@ import { environment } from '../../environments/environment';
 })
 export class SupabaseService {
   public supabase: SupabaseClient;
+  public currentRole = signal<'admin' | 'conductor' | 'cliente' | null>(null);
 
   constructor() {
     this.supabase = createClient(
@@ -18,6 +19,10 @@ export class SupabaseService {
     this.supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth state changed:', event, session);
     });
+  }
+
+  setCurrentRole(role: 'admin' | 'conductor' | 'cliente' | null) {
+    this.currentRole.set(role);
   }
 
   // Autenticación
@@ -50,6 +55,19 @@ export class SupabaseService {
     }
   }
 
+  // Recuperar contraseña: envía email de restablecimiento
+  async resetPasswordForEmail(email: string) {
+    try {
+      const { data, error } = await this.supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+      return { data, error };
+    } catch (error) {
+      console.error('Error resetPasswordForEmail:', error);
+      return { data: null, error } as any;
+    }
+  }
+
   // Obtener perfil del usuario
   async getProfile(userId: string) {
     const { data, error } = await this.supabase
@@ -71,6 +89,21 @@ export class SupabaseService {
     return { data, error };
   }
 
+  // Asegurar que el perfil exista con el rol indicado (update -> insert fallback)
+  async ensureProfileWithRole(userId: string, role: 'admin' | 'conductor' | 'cliente') {
+    try {
+      const upd = await this.updateProfile(userId, { role });
+      if (!upd.error) return upd;
+    } catch {}
+    // Insert fallback
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .insert({ id: userId, role })
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
   // Obtener rutas
   async getRutas() {
     const { data, error } = await this.supabase
@@ -78,6 +111,25 @@ export class SupabaseService {
       .select('*');
     
     return { data, error };
+  }
+
+  // Obtener calles
+  async getCalles() {
+    const { data, error } = await this.supabase
+      .from('calles')
+      .select('*');
+    
+    return { data, error };
+  }
+
+  // Crear una calle
+  async createCalle(calle: { nombre: string; shape: string }) {
+    const { data, error } = await this.supabase
+      .from('calles')
+      .insert(calle)
+      .select('*')
+      .single();
+    return { data, error } as any;
   }
 
   // Obtener ubicaciones
@@ -163,6 +215,72 @@ export class SupabaseService {
     } catch (error) {
       console.error('Error getting public url:', error);
       return null;
+    }
+  }
+
+  // Upsert masivo de rutas en la tabla 'rutas'
+  async upsertRutas(rows: any[]) {
+    try {
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return { data: [], error: null } as any;
+      }
+      // Particionar en chunks para evitar payloads grandes
+      const chunkSize = 500;
+      const chunks: any[][] = [];
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        chunks.push(rows.slice(i, i + chunkSize));
+      }
+
+      const results: any[] = [];
+      for (const chunk of chunks) {
+        const { data, error } = await this.supabase
+          .from('rutas')
+          // Requiere índice único en 'id' (pk) o la columna que corresponda
+          .upsert(chunk, { onConflict: 'id' });
+        if (error) {
+          console.error('upsertRutas chunk error:', error);
+          return { data: results, error };
+        }
+        const arr = Array.isArray(data) ? (data as any[]) : [];
+        results.push(...arr);
+      }
+
+      return { data: results, error: null } as any;
+    } catch (error) {
+      console.error('upsertRutas exception:', error);
+      return { data: null, error } as any;
+    }
+  }
+
+  // Upsert masivo de calles en la tabla 'calles'
+  async upsertCalles(rows: any[]) {
+    try {
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return { data: [], error: null } as any;
+      }
+      const chunkSize = 500;
+      const chunks: any[][] = [];
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        chunks.push(rows.slice(i, i + chunkSize));
+      }
+
+      const results: any[] = [];
+      for (const chunk of chunks) {
+        const { data, error } = await this.supabase
+          .from('calles')
+          .upsert(chunk, { onConflict: 'id' });
+        if (error) {
+          console.error('upsertCalles chunk error:', error);
+          return { data: results, error };
+        }
+        const arr = Array.isArray(data) ? (data as any[]) : [];
+        results.push(...arr);
+      }
+
+      return { data: results, error: null } as any;
+    } catch (error) {
+      console.error('upsertCalles exception:', error);
+      return { data: null, error } as any;
     }
   }
 }

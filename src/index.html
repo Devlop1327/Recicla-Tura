@@ -13,6 +13,18 @@
     />
     <meta name="format-detection" content="telephone=no" />
     <meta name="msapplication-tap-highlight" content="no" />
+    <!-- CSP for development: allow Ionic dev server, Supabase, and map tiles -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      connect-src 'self' http://localhost:8100 ws://localhost:8100 https://*.supabase.co https://*.supabase.in https://api.openstreetmap.org https://*.tile.openstreetmap.org http://apirecoleccion.gonzaloandreslucio.com;
+      img-src 'self' data: blob: https://*;
+      style-src 'self' 'unsafe-inline' https://*;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      font-src 'self' data: https://*;
+      media-src 'self' blob: data:;
+      object-src 'none';
+      frame-ancestors 'self';
+    " />
 
     <link rel="icon" type="image/png" href="assets/icon/Logo.png" />
 

@@ -1,4 +1,10 @@
-<div id="container">
-  <strong>{{ name }}</strong>
-  <p>Explore <a target="_blank" rel="noopener noreferrer" href="https://ionicframework.com/docs/components">UI Components</a></p>
-</div>
+<ion-grid id="container">
+  <ion-row>
+    <ion-col size="12" class="ion-text-center">
+      <ion-text>{{ name }}</ion-text>
+      <ion-button href="https://ionicframework.com/docs/components" target="_blank" rel="noopener noreferrer" fill="clear" size="small">
+        UI Components
+      </ion-button>
+    </ion-col>
+  </ion-row>
+</ion-grid>

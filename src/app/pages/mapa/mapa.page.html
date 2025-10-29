@@ -4,6 +4,7 @@
       <ion-back-button defaultHref="/tabs/home"></ion-back-button>
     </ion-buttons>
     <ion-title>Mapa de Buenaventura</ion-title>
+    <ion-badge slot="end" color="primary" class="ion-margin-end">Rol: {{ userRole() || '...' }}</ion-badge>
   </ion-toolbar>
 </ion-header>
 
@@ -28,17 +29,26 @@
       </ion-select>
     </ion-item>
     @if (supportsRecorridos) {
-      <ion-item lines="none">
-        <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
-          Iniciar Recorrido
-        </ion-button>
-        <ion-button size="small" color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()" style="margin-left:8px;">
-          Finalizar Recorrido
-        </ion-button>
-        @if (activeRecorrido()) {
-          <ion-badge color="tertiary" style="margin-left:8px;">En progreso</ion-badge>
-        }
-      </ion-item>
+      @if (userRole() === 'conductor') {
+        <ion-item lines="none">
+          <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
+            Iniciar Recorrido
+          </ion-button>
+          <ion-button size="small" color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()" class="ion-margin-start">
+            Finalizar Recorrido
+          </ion-button>
+          @if (activeRecorrido()) {
+            <ion-badge color="tertiary" class="ion-margin-start">En progreso</ion-badge>
+          }
+        </ion-item>
+      } @else {
+        <ion-item lines="none">
+          <ion-note color="medium">
+            <ion-icon name="information-circle" slot="start"></ion-icon>
+            Solo el conductor puede iniciar/finalizar recorridos
+          </ion-note>
+        </ion-item>
+      }
     } @else {
       <ion-item lines="none">
         <ion-note color="medium">
@@ -47,11 +57,34 @@
         </ion-note>
       </ion-item>
     }
-    <ion-item lines="none">
-      <ion-button size="small" color="secondary" (click)="createExampleRuta()">
-        Crear ruta de ejemplo
-      </ion-button>
-    </ion-item>
+    @if (userRole() === 'admin') {
+      <ion-item lines="none">
+        <ion-button size="small" color="secondary" (click)="createExampleRuta()">
+          Crear ruta de ejemplo
+        </ion-button>
+      </ion-item>
+    }
   </ion-list>
-  <div id="map"></div>
+  @if (userRole() === 'admin') {
+    <ion-list inset="true">
+      <ion-item lines="none">
+        <ion-button size="small" color="primary" (click)="toggleEditing()">
+          {{ editing() ? 'Salir edición' : 'Editar ruta' }}
+        </ion-button>
+        <ion-button size="small" color="medium" (click)="undoLast()" [disabled]="draftCount() === 0" class="ion-margin-start">
+          Deshacer punto
+        </ion-button>
+        <ion-button size="small" color="light" (click)="clearDraft()" [disabled]="draftCount() === 0" class="ion-margin-start">
+          Limpiar
+        </ion-button>
+        <ion-button size="small" color="success" (click)="saveDraftAsRuta()" [disabled]="draftCount() < 2" class="ion-margin-start">
+          Guardar como Ruta ({{ draftCount() }})
+        </ion-button>
+        <ion-button size="small" color="tertiary" (click)="saveDraftAsCalle()" [disabled]="draftCount() < 2" class="ion-margin-start">
+          Guardar como Calle
+        </ion-button>
+      </ion-item>
+    </ion-list>
+  }
+  <ion-card id="map"></ion-card>
 </ion-content>

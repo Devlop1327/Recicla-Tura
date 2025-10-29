@@ -18,17 +18,16 @@ import {
   IonGrid, 
   IonRow, 
   IonCol, 
-  IonSelect, 
-  IonSelectOption, 
   IonBadge,
   IonText,
   IonButtons,
   IonNote,
+  IonToggle,
+  IonSpinner,
   AlertController,
   AlertButton
 } from '@ionic/angular/standalone';
 import { FormsModule } from '@angular/forms';
-// Los íconos se importan directamente en el template
 import { ApiService, Vehiculo } from '../../services/api.service';
 
 @Component({
@@ -56,20 +55,21 @@ import { ApiService, Vehiculo } from '../../services/api.service';
     IonGrid, 
     IonRow, 
     IonCol, 
-    IonSelect, 
-    IonSelectOption, 
     IonBadge,
     IonText,
     IonButtons,
-    IonNote
+    IonNote,
+    IonToggle,
+    IonSpinner
   ]
 })
 export class VehiclesPage implements OnInit {
   vehiculos = signal<Vehiculo[]>([]);
   isLoading = signal(false);
-  // Form
-  form = signal<Partial<Vehiculo>>({ placa: '', modelo: '', color: '', capacidad: 0, estado: 'inactivo', ruta_id: '' });
+  // Form alineado con API externa
+  form = signal<Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>>({ placa: '', modelo: '', marca: '', activo: true });
   editingId: string | null = null;
+  showFormErrors = false;
 
   constructor(
     private api: ApiService,
@@ -135,7 +135,7 @@ export class VehiclesPage implements OnInit {
   }
 
   resetForm() {
-    this.form.set({ placa: '', modelo: '', color: '', capacidad: 0, estado: 'inactivo', ruta_id: '' });
+    this.form.set({ placa: '', modelo: '', marca: '', activo: true });
     this.editingId = null;
     // scroll to top to show the form
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -149,10 +149,8 @@ export class VehiclesPage implements OnInit {
     this.form.set({ 
       placa: veh.placa || '', 
       modelo: veh.modelo || '', 
-      color: veh.color || '', 
-      capacidad: veh.capacidad || 0, 
-      estado: veh.estado || 'inactivo', 
-      ruta_id: veh.ruta_id || '' 
+      marca: veh.marca || '', 
+      activo: !!veh.activo
     });
     
     // Desplazarse al formulario
@@ -170,20 +168,14 @@ export class VehiclesPage implements OnInit {
     this.form.set({ ...current, modelo: value ?? '' });
   }
 
-  setColor(value: string | null | undefined) {
+  setMarca(value: string | null | undefined) {
     const current = this.form();
-    this.form.set({ ...current, color: value ?? '' });
+    this.form.set({ ...current, marca: value ?? '' });
   }
 
-  setCapacidad(value: string | number | null | undefined) {
+  setActivo(value: boolean | null | undefined) {
     const current = this.form();
-    const num = value == null ? 0 : Number(value);
-    this.form.set({ ...current, capacidad: Number.isFinite(num) ? num : 0 });
-  }
-
-  setEstado(value: Vehiculo['estado']) {
-    const current = this.form();
-    this.form.set({ ...current, estado: value });
+    this.form.set({ ...current, activo: !!value });
   }
 
   // Método auxiliar para mostrar alertas
@@ -196,20 +188,12 @@ export class VehiclesPage implements OnInit {
     await alert.present();
   }
 
-  // Obtener color según el estado del vehículo
-  getEstadoColor(estado: string): string {
-    switch (estado) {
-      case 'activo': return 'success';
-      case 'inactivo': return 'medium';
-      case 'mantenimiento': return 'warning';
-      default: return 'primary';
-    }
+  // Obtener color según si está activo
+  getActivoColor(activo: boolean): string {
+    return activo ? 'success' : 'medium';
   }
 
-  setRutaId(value: string) {
-    const current = this.form();
-    this.form.set({ ...current, ruta_id: value });
-  }
+  // Sin ruta en el modelo expuesto por la API externa
 
 
   async confirmRemove(veh: Vehiculo) {

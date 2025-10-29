@@ -19,86 +19,74 @@
           </ion-card-header>
           
           <ion-card-content>
-            <form (ngSubmit)="save()" #vehiculoForm="ngForm">
+            <ion-list>
               <ion-item>
                 <ion-label position="floating">Placa <ion-text color="danger">*</ion-text></ion-label>
                 <ion-input
                   type="text"
                   [value]="form().placa"
-                  (ionInput)="setPlaca($any($event).detail.value)"
+                  (ionInput)="$event && setPlaca($any($event).detail.value)"
                   required>
                 </ion-input>
               </ion-item>
-              <ion-note color="danger" *ngIf="vehiculoForm.submitted && !form().placa">
-                La placa es requerida
-              </ion-note>
+              @if (!form().placa && showFormErrors) {
+                <ion-note color="danger">
+                  La placa es requerida
+                </ion-note>
+              }
 
               <ion-item>
                 <ion-label position="floating">Modelo <ion-text color="danger">*</ion-text></ion-label>
                 <ion-input
                   type="text"
                   [value]="form().modelo"
-                  (ionInput)="setModelo($any($event).detail.value)"
+                  (ionInput)="$event && setModelo($any($event).detail.value)"
                   required>
                 </ion-input>
               </ion-item>
-              <ion-note color="danger" *ngIf="vehiculoForm.submitted && !form().modelo">
-                El modelo es requerido
-              </ion-note>
+              @if (!form().modelo && showFormErrors) {
+                <ion-note color="danger">
+                  El modelo es requerido
+                </ion-note>
+              }
 
               <ion-item>
-                <ion-label position="floating">Color</ion-label>
+                <ion-label position="floating">Marca</ion-label>
                 <ion-input
                   type="text"
-                  [value]="form().color"
-                  (ionInput)="setColor($event.detail.value)">
+                  [value]="form().marca"
+                  (ionInput)="$event && setMarca($any($event).detail.value)">
                 </ion-input>
               </ion-item>
 
               <ion-item>
-                <ion-label position="floating">Capacidad (kg)</ion-label>
-                <ion-input
-                  type="number"
-                  [value]="form().capacidad"
-                  (ionInput)="setCapacidad($event.detail.value)"
-                  min="0"
-                  required>
-                </ion-input>
+                <ion-label>Activo</ion-label>
+                <ion-toggle
+                  [checked]="form().activo"
+                  (ionChange)="setActivo($any($event).detail.checked)">
+                </ion-toggle>
               </ion-item>
 
-              <ion-item>
-                <ion-label>Estado</ion-label>
-                <ion-select
-                  [value]="form().estado"
-                  (ionChange)="setEstado($event.detail.value)"
-                  interface="action-sheet"
-                  cancelText="Cancelar"
-                  okText="Aceptar">
-                  <ion-select-option value="activo">Activo</ion-select-option>
-                  <ion-select-option value="inactivo">Inactivo</ion-select-option>
-                  <ion-select-option value="mantenimiento">Mantenimiento</ion-select-option>
-                </ion-select>
-              </ion-item>
-
-              <div class="ion-margin-top ion-text-end">
-                <ion-button 
-                  type="button"
-                  color="medium" 
-                  fill="outline" 
-                  (click)="resetForm()"
-                  class="ion-margin-end">
-                  <ion-icon slot="start" name="close-circle-outline"></ion-icon>
-                  Cancelar
-                </ion-button>
-                <ion-button 
-                  type="submit"
-                  color="primary" 
-                  [disabled]="!form().placa || !form().modelo">
-                  <ion-icon slot="start" name="save-outline"></ion-icon>
-                  {{ editingId ? 'Actualizar' : 'Guardar' }}
-                </ion-button>
-              </div>
-            </form>
+              <ion-row class="ion-margin-top ion-text-end">
+                <ion-col>
+                  <ion-button 
+                    color="medium" 
+                    fill="outline" 
+                    (click)="resetForm()"
+                    class="ion-margin-end">
+                    <ion-icon slot="start" name="close-circle-outline"></ion-icon>
+                    Cancelar
+                  </ion-button>
+                  <ion-button 
+                    color="primary" 
+                    [disabled]="!form().placa || !form().modelo"
+                    (click)="showFormErrors = true; save()">
+                    <ion-icon slot="start" name="save-outline"></ion-icon>
+                    {{ editingId ? 'Actualizar' : 'Guardar' }}
+                  </ion-button>
+                </ion-col>
+              </ion-row>
+            </ion-list>
           </ion-card-content>
         </ion-card>
       </ion-col>
@@ -115,30 +103,40 @@
           </ion-card-header>
           <ion-card-content>
             @if (isLoading()) {
-              <div>Cargando vehículos...</div>
+              <ion-row justify-content-center>
+                <ion-col size="12" class="ion-text-center">
+                  <ion-spinner name="crescent"></ion-spinner>
+                  <ion-text class="ion-margin-start">Cargando vehículos...</ion-text>
+                </ion-col>
+              </ion-row>
             } @else {
               <ion-list>
                   @if (vehiculos().length > 0) {
                     @for (veh of vehiculos(); track veh.id; let i = $index) {
                     <ion-item [class.item-selected]="editingId === veh.id">
                       <ion-label>
-                        <h2>{{ veh.placa }}</h2>
-                        <p>
-                          <ion-text color="medium">{{ veh.modelo }}</ion-text> • 
-                          <ion-badge [color]="getEstadoColor(veh.estado)" class="ion-text-uppercase">
-                            {{ veh.estado }}
-                          </ion-badge>
-                        </p>
-                        <p>
-                          <ion-text color="medium">
-                            <small>
-                              <ion-icon name="color-palette" class="ion-margin-end"></ion-icon>
-                              {{ veh.color || 'Sin color' }} • 
-                              <ion-icon name="speedometer" class="ion-margin-start ion-margin-end"></ion-icon>
-                              {{ veh.capacidad }} kg
-                            </small>
-                          </ion-text>
-                        </p>
+                        <ion-text>{{ veh.placa }}</ion-text>
+                        <ion-row align-items-center>
+                          <ion-col class="ion-no-padding" size="auto">
+                            <ion-text color="medium">{{ veh.modelo }}</ion-text>
+                          </ion-col>
+                          <ion-col class="ion-no-padding" size="auto">
+                            <ion-text color="medium"> • </ion-text>
+                          </ion-col>
+                          <ion-col class="ion-no-padding" size="auto">
+                            <ion-badge [color]="getActivoColor(veh.activo)" class="ion-text-uppercase">
+                              {{ veh.activo ? 'ACTIVO' : 'INACTIVO' }}
+                            </ion-badge>
+                          </ion-col>
+                        </ion-row>
+                        <ion-row>
+                          <ion-col class="ion-no-padding">
+                            <ion-text color="medium">
+                              <ion-icon name="pricetag" class="ion-margin-end"></ion-icon>
+                              {{ veh.marca || 'Sin marca' }}
+                            </ion-text>
+                          </ion-col>
+                        </ion-row>
                       </ion-label>
                       <ion-buttons slot="end" class="action-buttons">
                         <ion-button fill="solid" color="primary" (click)="edit(veh)" class="action-button">
@@ -156,8 +154,8 @@
                   <ion-item lines="none" class="ion-text-center">
                     <ion-label class="ion-text-wrap">
                       <ion-icon name="alert-circle" color="medium" size="large"></ion-icon>
-                      <h3>No hay vehículos registrados</h3>
-                      <p>Utiliza el formulario superior para agregar un nuevo vehículo.</p>
+                      <ion-text>No hay vehículos registrados</ion-text>
+                      <ion-text color="medium">Utiliza el formulario superior para agregar un nuevo vehículo.</ion-text>
                     </ion-label>
                   </ion-item>
                 }
@@ -169,3 +167,4 @@
     </ion-row>
   </ion-grid>
 </ion-content>
+

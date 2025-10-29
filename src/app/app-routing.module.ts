@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { AuthGuard } from './guards/auth.guard';
+import { roleGuard } from './guards/role.guard';
 
 export const routes: Routes = [
   {
@@ -10,6 +11,14 @@ export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () => import('./pages/login/login.page').then(m => m.LoginPage)
+  },
+  {
+    path: 'recover',
+    loadComponent: () => import('./pages/recover/recover.page').then(m => m.RecoverPage)
+  },
+  {
+    path: 'reset-password',
+    loadComponent: () => import('./pages/reset-password/reset-password.page').then(m => m.ResetPasswordPage)
   },
   {
     path: 'tabs',
@@ -30,7 +39,9 @@ export const routes: Routes = [
       },
       {
         path: 'vehicles',
-        loadComponent: () => import('./pages/vehicles/vehicles.page').then(m => m.VehiclesPage)
+        loadComponent: () => import('./pages/vehicles/vehicles.page').then(m => m.VehiclesPage),
+        canActivate: [roleGuard],
+        data: { roles: ['admin'] }
       },
       {
         path: '',
@@ -40,8 +51,39 @@ export const routes: Routes = [
     ]
   },
   {
+    path: 'admin',
+    loadComponent: () => import('./pages/admin/admin.page').then(m => m.AdminPage),
+    canActivate: [roleGuard],
+    data: { roles: ['admin'] },
+    children: [
+      {
+        path: '',
+        redirectTo: 'dashboard',
+        pathMatch: 'full'
+      },
+      {
+        path: 'dashboard',
+        loadComponent: () => import('./pages/admin/admin-dashboard.page').then(m => m.AdminDashboardPage)
+      },
+      {
+        path: 'users',
+        loadComponent: () => import('./pages/admin/admin-users.page').then(m => m.AdminUsersPage)
+      },
+      {
+        path: 'routes',
+        loadComponent: () => import('./pages/admin/admin-routes.page').then(m => m.AdminRoutesPage)
+      },
+      {
+        path: 'vehicles',
+        loadComponent: () => import('./pages/admin/admin-vehicles.page').then(m => m.AdminVehiclesPage)
+      }
+    ]
+  },
+  {
     path: 'mapa',
-    loadChildren: () => import('./pages/mapa/mapa.module').then( m => m.MapaPageModule)
+    loadComponent: () => import('./pages/mapa/mapa.page').then(m => m.MapaPage),
+    canActivate: [roleGuard],
+    data: { roles: ['admin','conductor','cliente'] }
   },
   {
     path: '**',
