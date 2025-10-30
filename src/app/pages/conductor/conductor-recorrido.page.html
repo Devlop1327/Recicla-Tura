@@ -1,0 +1,23 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Recorrido activo</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>Estado</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-chip color="success" *ngIf="activo(); else inactivo">Activo</ion-chip>
+      <ng-template #inactivo>
+        <ion-chip color="medium">Sin recorrido activo</ion-chip>
+      </ng-template>
+    </ion-card-content>
+  </ion-card>
+
+  <ion-button expand="block" color="danger" (click)="finalizar()" [disabled]="!activo()">
+    Finalizar recorrido
+  </ion-button>
+</ion-content>

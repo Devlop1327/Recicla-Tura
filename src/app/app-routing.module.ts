@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AuthGuard } from './guards/auth.guard';
 import { roleGuard } from './guards/role.guard';
+import { roleMatchGuard } from './guards/role-match.guard';
 
 export const routes: Routes = [
   {
@@ -51,9 +52,15 @@ export const routes: Routes = [
     ]
   },
   {
+    path: 'conductor',
+    loadChildren: () => import('./conductor/conductor.routes').then(m => m.CONDUCTOR_ROUTES),
+    canMatch: [roleMatchGuard],
+    data: { roles: ['conductor', 'admin'] }
+  },
+  {
     path: 'admin',
     loadComponent: () => import('./pages/admin/admin.page').then(m => m.AdminPage),
-    canActivate: [roleGuard],
+    canMatch: [roleMatchGuard],
     data: { roles: ['admin'] },
     children: [
       {

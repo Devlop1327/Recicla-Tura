@@ -1,0 +1,32 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Rutas asignadas</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="onRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <ion-list *ngIf="!isLoading(); else loadingTpl">
+    <ion-item *ngFor="let r of rutas()" button detail (click)="seleccionar(r.id)">
+      <ion-label>
+        <h2>{{ r.nombre }}</h2>
+        <p>Toque para iniciar recorrido</p>
+      </ion-label>
+      <ion-icon name="chevron-forward" slot="end"></ion-icon>
+    </ion-item>
+  </ion-list>
+
+  <ng-template #loadingTpl>
+    <ion-list>
+      <ion-item>
+        <ion-skeleton-text animated style="width: 80%"></ion-skeleton-text>
+      </ion-item>
+      <ion-item>
+        <ion-skeleton-text animated style="width: 60%"></ion-skeleton-text>
+      </ion-item>
+    </ion-list>
+  </ng-template>
+</ion-content>
