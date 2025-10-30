@@ -1,8 +1,9 @@
 import { Component, signal } from '@angular/core';
-import { IonicModule } from '@ionic/angular';
+import { IonicModule, AlertController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { RecorridosService } from '../../services/recorridos.service';
+import { ApiService, Vehiculo } from '../../services/api.service';
 
 @Component({
   selector: 'app-conductor-rutas',
@@ -14,21 +15,53 @@ import { RecorridosService } from '../../services/recorridos.service';
 export class ConductorRutasPage {
   rutas = signal<Array<{ id: string; nombre: string }>>([]);
   isLoading = signal(false);
+  vehiculos = signal<Vehiculo[]>([]);
 
-  constructor(private recorridos: RecorridosService, private router: Router) {}
+  constructor(
+    private recorridos: RecorridosService,
+    private router: Router,
+    private api: ApiService,
+    private alertCtrl: AlertController
+  ) {}
 
   async ionViewWillEnter() {
     this.isLoading.set(true);
     try {
-      const rs = await this.recorridos.getAssignedRutas();
+      const [rs, vs] = await Promise.all([
+        this.recorridos.getAssignedRutas(),
+        this.api.getVehiculos().catch(() => [])
+      ]);
       this.rutas.set(rs);
+      this.vehiculos.set(Array.isArray(vs) ? vs : []);
     } finally {
       this.isLoading.set(false);
     }
   }
 
   async seleccionar(rutaId: string) {
-    await this.recorridos.startRecorrido(rutaId);
+    const vehs = this.vehiculos();
+    let selected: string | null = vehs[0]?.id || null;
+    if (vehs.length > 0) {
+      const alert = await this.alertCtrl.create({
+        header: 'Selecciona tu vehículo',
+        inputs: vehs.map(v => ({
+          name: 'veh',
+          type: 'radio',
+          label: `${v.placa}${v.modelo ? ' · ' + v.modelo : ''}`,
+          value: v.id,
+          checked: v.id === selected
+        })),
+        buttons: [
+          { text: 'Cancelar', role: 'cancel' },
+          { text: 'Aceptar', role: 'confirm' }
+        ]
+      });
+      await alert.present();
+      const res = await alert.onDidDismiss();
+      if (res.role !== 'confirm') return;
+      selected = (res.data as any)?.values ?? (res.data as any)?.value ?? selected;
+    }
+    await this.recorridos.startRecorrido(rutaId, selected || undefined);
     await this.router.navigateByUrl('/conductor/recorrido');
   }
 

@@ -98,11 +98,11 @@ export class LoginPage {
         this.showToast('Error al registrarse: ' + error.message, 'danger');
       } else {
         this.showToast('¡Registro exitoso! Revisa tu email para confirmar tu cuenta.', 'success');
-        // Si hay sesión y un id de usuario, persistir el rol en profiles
+        // Persistir el rol inmediatamente usando el id retornado por signUp (sin depender de sesión activa)
         try {
-          const user = await this.supabaseService.getCurrentUser();
-          if (user?.id) {
-            await this.supabaseService.ensureProfileWithRole(user.id, this.role());
+          const userId = data?.user?.id || data?.session?.user?.id;
+          if (userId) {
+            await this.supabaseService.ensureProfileWithRole(userId, this.role());
             this.supabaseService.setCurrentRole(this.role());
           }
         } catch {}

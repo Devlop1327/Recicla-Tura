@@ -45,6 +45,49 @@ export class MapaPage implements AfterViewInit {
     this.loadCallesLayer();
     this.loadRutasLayer();
     this.loadUserRole();
+    // Tras cargar el rol, iniciar observación para clientes
+    setTimeout(() => this.watchActiveRecorridosForClients(), 0);
+  }
+
+  // Observa recorridos activos para clientes y actualiza el mapa
+  private clientWatchTimer: any = null;
+  private lastWatchedRecorridoId: string | null = null;
+  private async watchActiveRecorridosForClients() {
+    const role = this.userRole();
+    if (role === 'conductor') {
+      // El conductor maneja su propio polling al iniciar recorrido
+      if (this.clientWatchTimer) {
+        clearInterval(this.clientWatchTimer);
+        this.clientWatchTimer = null;
+      }
+      return;
+    }
+    const poll = async () => {
+      try {
+        const recs = await this.mapData.loadRecorridos();
+        const activo = (recs || []).find(r => (r.estado || '').toLowerCase() === 'en_progreso');
+        const recId = activo?.id || null;
+        if (recId && recId !== this.lastWatchedRecorridoId) {
+          this.lastWatchedRecorridoId = recId;
+          const posiciones = await this.mapData.listarPosiciones(recId);
+          this.drawRecorrido(posiciones);
+        } else if (!recId) {
+          // limpiar dibujo si no hay recorrido activo
+          if (this.recorridoPolyline && this.map) {
+            (this.map as L.Map).removeLayer(this.recorridoPolyline);
+            this.recorridoPolyline = null;
+          }
+          if (this.recorridoMarker && this.map) {
+            (this.map as L.Map).removeLayer(this.recorridoMarker);
+            this.recorridoMarker = null;
+          }
+          this.lastWatchedRecorridoId = null;
+        }
+      } catch {}
+    };
+    await poll();
+    if (this.clientWatchTimer) clearInterval(this.clientWatchTimer);
+    this.clientWatchTimer = setInterval(poll, 5000);
   }
 
   private initMap(): void {
@@ -74,6 +117,10 @@ export class MapaPage implements AfterViewInit {
     window.removeEventListener('resize', this.onResize);
     if (this.posicionesTimer) {
       clearInterval(this.posicionesTimer);
+    }
+    if (this.clientWatchTimer) {
+      clearInterval(this.clientWatchTimer);
+      this.clientWatchTimer = null;
     }
     if (this.map && this.onMapClick) {
       this.map.off('click', this.onMapClick as any);

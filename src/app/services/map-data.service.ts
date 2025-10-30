@@ -260,11 +260,9 @@ export class MapDataService {
       this.loading.set(true);
       this.error.set(null);
       const data = await firstValueFrom(
-        this.http.get<{ data: RecorridoApiItem[] }>(`${this.baseUrl}/recorridos`, {
-          params: { perfil_id: this.profileId }
-        })
+        this.http.get<{ data?: RecorridoApiItem[] } | RecorridoApiItem[]>(`${this.baseUrl}misrecorridos`)
       );
-      const items = data?.data ?? [];
+      const items = Array.isArray(data) ? (data as RecorridoApiItem[]) : (data?.data ?? []);
       this.recorridos.set(items);
       return items;
     } catch (e: any) {
@@ -275,21 +273,20 @@ export class MapDataService {
     }
   }
 
-  async iniciarRecorrido(rutaId: string): Promise<RecorridoApiItem | null> {
+  async iniciarRecorrido(rutaId: string, vehiculoId?: string): Promise<RecorridoApiItem | null> {
     try {
-      console.log('[MapDataService] POST /recorridos', {
-        url: `${this.baseUrl}/recorridos`,
-        body: { ruta_id: rutaId, perfil_id: this.profileId },
-        params: { perfil_id: this.profileId }
+      console.log('[MapDataService] POST /recorridos/iniciar', {
+        url: `${this.baseUrl}recorridos/iniciar`,
+        body: { ruta_id: rutaId, vehiculo_id: vehiculoId, perfil_id: this.profileId }
       });
       const data = await firstValueFrom(
         this.http.post<{ data: RecorridoApiItem }>(
-          `${this.baseUrl}/recorridos`,
+          `${this.baseUrl}recorridos/iniciar`,
           {
             ruta_id: rutaId,
+            vehiculo_id: vehiculoId,
             perfil_id: this.profileId
-          },
-          { params: { perfil_id: this.profileId } }
+          }
         )
       );
       return data?.data ?? null;
@@ -301,20 +298,19 @@ export class MapDataService {
 
   async finalizarRecorrido(recorridoId: string): Promise<boolean> {
     try {
-      console.log('[MapDataService] POST /recorridos/:id/finalizar', {
-        url: `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
-        params: { perfil_id: this.profileId }
+      console.log('[MapDataService] POST /recorridos/{id}/finalizar', {
+        url: `${this.baseUrl}recorridos/${recorridoId}/finalizar`,
+        body: { perfil_id: this.profileId }
       });
       await firstValueFrom(
         this.http.post(
-          `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
-          {},
-          { params: { perfil_id: this.profileId } }
+          `${this.baseUrl}recorridos/${recorridoId}/finalizar`,
+          { perfil_id: this.profileId }
         )
       );
       return true;
     } catch (e: any) {
-      console.warn('[MapDataService] POST /recorridos/:id/finalizar no disponible (quizá 404).', e?.message || e);
+      console.warn('[MapDataService] POST /recorridos/{id}/finalizar falló:', e?.message || e);
       return false;
     }
   }
@@ -322,11 +318,18 @@ export class MapDataService {
   async listarPosiciones(recorridoId: string): Promise<PosicionApiItem[]> {
     try {
       const data = await firstValueFrom(
-        this.http.get<{ data: PosicionApiItem[] }>(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
-          params: { perfil_id: this.profileId }
-        })
+        this.http.get<{ data: any[] }>(`${this.baseUrl}recorridos/${recorridoId}/posiciones`)
       );
-      return data?.data ?? [];
+      const arr = Array.isArray(data?.data) ? data!.data : [];
+      // Mapear lon->lng si la API usa 'lon'
+      return arr.map((p: any) => ({
+        id: p.id,
+        recorrido_id: p.recorrido_id,
+        lat: p.lat,
+        lng: p.lng ?? p.lon,
+        velocidad: p.velocidad,
+        timestamp: p.timestamp || p.created_at || new Date().toISOString()
+      } as PosicionApiItem));
     } catch {
       return [];
     }
@@ -335,8 +338,11 @@ export class MapDataService {
   async registrarPosicion(recorridoId: string, lat: number, lng: number, velocidad?: number) {
     try {
       await firstValueFrom(
-        this.http.post(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
-          lat, lng, velocidad
+        this.http.post(`${this.baseUrl}recorridos/${recorridoId}/posiciones`, {
+          lat,
+          lon: lng,
+          perfil_id: this.profileId,
+          velocidad
         })
       );
       return true;

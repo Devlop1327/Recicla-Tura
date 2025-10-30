@@ -84,24 +84,24 @@ export class SupabaseService {
     const { data, error } = await this.supabase
       .from('profiles')
       .update(updates)
-      .eq('id', userId);
+      .eq('id', userId)
+      .select('*');
     
     return { data, error };
   }
 
-  // Asegurar que el perfil exista con el rol indicado (update -> insert fallback)
+  // Asegurar que el perfil exista con el rol indicado usando upsert
   async ensureProfileWithRole(userId: string, role: 'admin' | 'conductor' | 'cliente') {
     try {
-      const upd = await this.updateProfile(userId, { role });
-      if (!upd.error) return upd;
-    } catch {}
-    // Insert fallback
-    const { data, error } = await this.supabase
-      .from('profiles')
-      .insert({ id: userId, role })
-      .select('*')
-      .single();
-    return { data, error } as any;
+      const { data, error } = await this.supabase
+        .from('profiles')
+        .upsert({ id: userId, role }, { onConflict: 'id' })
+        .select('*')
+        .single();
+      return { data, error } as any;
+    } catch (error) {
+      return { data: null, error } as any;
+    }
   }
 
   // Obtener rutas
