@@ -1,9 +1,10 @@
 import { Component, AfterViewInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule } from '@ionic/angular';
+import { IonicModule, AlertController } from '@ionic/angular';
 import { HttpClientModule } from '@angular/common/http';
 import * as L from 'leaflet';
 import { MapDataService, RutaApiItem, RecorridoApiItem, PosicionApiItem } from '../../services/map-data.service';
+import { ApiService, Vehiculo } from '../../services/api.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { environment } from '../../../environments/environment';
 
@@ -33,7 +34,12 @@ export class MapaPage implements AfterViewInit {
   private draftMarkers: L.Marker[] = [];
   private draftPolyline: L.Polyline | null = null;
 
-  constructor(private mapData: MapDataService, private supabaseSvc: SupabaseService) { }
+  constructor(
+    private mapData: MapDataService,
+    private supabaseSvc: SupabaseService,
+    private api: ApiService,
+    private alertCtrl: AlertController
+  ) { }
 
   ngAfterViewInit() {
     this.initMap();
@@ -389,7 +395,33 @@ export class MapaPage implements AfterViewInit {
     if (this.userRole() !== 'conductor') return;
     const rutaId = this.selectedRutaId();
     if (!rutaId) return;
-    const rec = await this.mapData.iniciarRecorrido(rutaId);
+    // Seleccionar vehículo requerido por la API externa
+    let vehiculoId: string | null = null;
+    try {
+      const vehiculos = await this.api.getVehiculos();
+      if (Array.isArray(vehiculos) && vehiculos.length > 0) {
+        const first = vehiculos[0];
+        const alert = await this.alertCtrl.create({
+          header: 'Selecciona tu vehículo',
+          inputs: vehiculos.map((v: Vehiculo) => ({
+            name: 'veh',
+            type: 'radio',
+            label: `${v.placa}${v.modelo ? ' · ' + v.modelo : ''}`,
+            value: v.id,
+            checked: v.id === first.id
+          })),
+          buttons: [
+            { text: 'Cancelar', role: 'cancel' },
+            { text: 'Aceptar', role: 'confirm' }
+          ]
+        });
+        await alert.present();
+        const res = await alert.onDidDismiss();
+        if (res.role !== 'confirm') return;
+        vehiculoId = (res.data as any)?.values ?? (res.data as any)?.value ?? first.id;
+      }
+    } catch {}
+    const rec = await this.mapData.iniciarRecorrido(rutaId, vehiculoId || undefined);
     if (rec) {
       this.activeRecorrido.set(rec);
       this.beginPollingPosiciones(rec.id);

@@ -260,7 +260,9 @@ export class MapDataService {
       this.loading.set(true);
       this.error.set(null);
       const data = await firstValueFrom(
-        this.http.get<{ data?: RecorridoApiItem[] } | RecorridoApiItem[]>(`${this.baseUrl}misrecorridos`)
+        this.http.get<{ data?: RecorridoApiItem[] } | RecorridoApiItem[]>(`${this.baseUrl}/misrecorridos`, {
+          params: { perfil_id: this.profileId }
+        })
       );
       const items = Array.isArray(data) ? (data as RecorridoApiItem[]) : (data?.data ?? []);
       this.recorridos.set(items);
@@ -276,12 +278,12 @@ export class MapDataService {
   async iniciarRecorrido(rutaId: string, vehiculoId?: string): Promise<RecorridoApiItem | null> {
     try {
       console.log('[MapDataService] POST /recorridos/iniciar', {
-        url: `${this.baseUrl}recorridos/iniciar`,
+        url: `${this.baseUrl}/recorridos/iniciar`,
         body: { ruta_id: rutaId, vehiculo_id: vehiculoId, perfil_id: this.profileId }
       });
       const data = await firstValueFrom(
         this.http.post<{ data: RecorridoApiItem }>(
-          `${this.baseUrl}recorridos/iniciar`,
+          `${this.baseUrl}/recorridos/iniciar`,
           {
             ruta_id: rutaId,
             vehiculo_id: vehiculoId,
@@ -299,12 +301,12 @@ export class MapDataService {
   async finalizarRecorrido(recorridoId: string): Promise<boolean> {
     try {
       console.log('[MapDataService] POST /recorridos/{id}/finalizar', {
-        url: `${this.baseUrl}recorridos/${recorridoId}/finalizar`,
+        url: `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
         body: { perfil_id: this.profileId }
       });
       await firstValueFrom(
         this.http.post(
-          `${this.baseUrl}recorridos/${recorridoId}/finalizar`,
+          `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
           { perfil_id: this.profileId }
         )
       );
@@ -318,7 +320,7 @@ export class MapDataService {
   async listarPosiciones(recorridoId: string): Promise<PosicionApiItem[]> {
     try {
       const data = await firstValueFrom(
-        this.http.get<{ data: any[] }>(`${this.baseUrl}recorridos/${recorridoId}/posiciones`)
+        this.http.get<{ data: any[] }>(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`)
       );
       const arr = Array.isArray(data?.data) ? data!.data : [];
       // Mapear lon->lng si la API usa 'lon'
@@ -338,7 +340,7 @@ export class MapDataService {
   async registrarPosicion(recorridoId: string, lat: number, lng: number, velocidad?: number) {
     try {
       await firstValueFrom(
-        this.http.post(`${this.baseUrl}recorridos/${recorridoId}/posiciones`, {
+        this.http.post(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
           lat,
           lon: lng,
           perfil_id: this.profileId,
