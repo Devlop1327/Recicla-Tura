@@ -46,6 +46,89 @@
       </ion-col>
     </ion-row>
 
+    <!-- Atajos por rol -->
+    @if (role() === 'conductor') {
+      <ion-row class="ion-padding-horizontal ion-padding-bottom">
+        <ion-col size="12">
+          <ion-card>
+            <ion-card-header>
+              <ion-card-title>Hola, Conductor</ion-card-title>
+              <ion-card-subtitle>Accesos rápidos</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <ion-button expand="block" color="success" (click)="go('/conductor/rutas')">
+                <ion-icon slot="start" name="map-outline"></ion-icon>
+                Rutas asignadas
+              </ion-button>
+              <ion-button expand="block" color="tertiary" (click)="go('/conductor/recorrido')" class="ion-margin-top">
+                <ion-icon slot="start" name="navigate-outline"></ion-icon>
+                Iniciar/continuar recorrido
+              </ion-button>
+              <ion-button expand="block" color="primary" (click)="go('/mapa')" class="ion-margin-top">
+                <ion-icon slot="start" name="map"></ion-icon>
+                Ver mapa
+              </ion-button>
+            </ion-card-content>
+          </ion-card>
+        </ion-col>
+      </ion-row>
+    }
+
+    @if (role() === 'cliente') {
+      <ion-row class="ion-padding-horizontal ion-padding-bottom">
+        <ion-col size="12">
+          <ion-card>
+            <ion-card-header>
+              <ion-card-title>Carro en ruta</ion-card-title>
+              <ion-card-subtitle>Seguimiento en tiempo real</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <ion-row class="ion-align-items-center">
+                <ion-col>
+                  <ion-text color="medium">Vehículos moviéndose: {{ movingVehiclesCount() }}</ion-text>
+                </ion-col>
+                <ion-col size="auto">
+                  <ion-button color="primary" (click)="go('/mapa')">
+                    <ion-icon slot="start" name="map"></ion-icon>
+                    Ver en mapa
+                  </ion-button>
+                </ion-col>
+              </ion-row>
+            </ion-card-content>
+          </ion-card>
+          <ion-card>
+            <ion-card-header>
+              <ion-card-title>Mi zona</ion-card-title>
+              <ion-card-subtitle>Rutas y horarios</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <ion-text color="medium">Consulta el mapa para ver tu recorrido asignado.</ion-text>
+              <ion-button fill="clear" size="small" (click)="go('/mapa')" class="ion-margin-top">Abrir mapa</ion-button>
+            </ion-card-content>
+          </ion-card>
+        </ion-col>
+      </ion-row>
+    }
+
+    @if (role() === 'admin') {
+      <ion-row class="ion-padding-horizontal ion-padding-bottom">
+        <ion-col size="12">
+          <ion-card>
+            <ion-card-header>
+              <ion-card-title>Hola, Admin</ion-card-title>
+              <ion-card-subtitle>Acceso al panel</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <ion-button expand="block" color="primary" (click)="go('/admin')">
+                <ion-icon slot="start" name="settings"></ion-icon>
+                Panel de administración
+              </ion-button>
+            </ion-card-content>
+          </ion-card>
+        </ion-col>
+      </ion-row>
+    }
+
     <!-- Botón para abrir la página del mapa de Buenaventura -->
     <ion-row class="open-map-action ion-padding-horizontal ion-padding-bottom">
       <ion-col size="12">

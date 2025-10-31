@@ -43,6 +43,18 @@ export class HomePage implements OnInit, OnDestroy {
     this.startRealTimeUpdates();
   }
 
+  role(): 'admin' | 'conductor' | 'cliente' | null {
+    return this.supabaseService.currentRole?.() ?? null;
+  }
+
+  movingVehiclesCount(): number {
+    return (this.ubicacionesVehiculos() || []).filter(u => (u as any).velocidad && (u as any).velocidad > 0).length;
+  }
+
+  async go(path: string) {
+    await this.router.navigateByUrl(path);
+  }
+
   // Importar calles desde la API pública a Supabase (tabla 'calles')
   async importCallesToSupabase() {
     try {

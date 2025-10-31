@@ -113,6 +113,16 @@ export class SupabaseService {
     return { data, error };
   }
 
+  // Eliminar ruta por id
+  async deleteRuta(id: string) {
+    const { data, error } = await this.supabase
+      .from('rutas')
+      .delete()
+      .eq('id', id)
+      .select('*');
+    return { data, error } as any;
+  }
+
   // Obtener calles
   async getCalles() {
     const { data, error } = await this.supabase
@@ -139,6 +149,60 @@ export class SupabaseService {
       .select('*');
     
     return { data, error };
+  }
+
+  async createUbicacion(row: { recorrido_id?: string | null; ruta_id?: string | null; lat: number; lng: number; velocidad?: number | null }) {
+    try {
+      // Intento estándar: columnas lat/lng/velocidad
+      const { data, error } = await this.supabase
+        .from('ubicaciones')
+        .insert({
+          recorrido_id: row.recorrido_id ?? null,
+          lat: row.lat,
+          lng: row.lng,
+          velocidad: row.velocidad ?? null
+        })
+        .select('*')
+        .single();
+      if (!error) return { data, error } as any;
+      // Fallback 1: usar latitud/longitud (esquemas alternos)
+      const { data: data2, error: error2 } = await this.supabase
+        .from('ubicaciones')
+        .insert({
+          recorrido_id: row.recorrido_id ?? null,
+          latitud: row.lat,
+          longitud: row.lng,
+          velocidad: row.velocidad ?? null
+        })
+        .select('*')
+        .single();
+      if (!error2) return { data: data2, error: error2 } as any;
+      // Fallback 2: si tu tabla usa ruta_id en lugar de recorrido_id
+      const { data: data3a, error: error3a } = await this.supabase
+        .from('ubicaciones')
+        .insert({
+          ruta_id: row.ruta_id ?? null,
+          latitud: row.lat,
+          longitud: row.lng,
+          velocidad: row.velocidad ?? null
+        })
+        .select('*')
+        .single();
+      if (!error3a) return { data: data3a, error: error3a } as any;
+      // Fallback 2: sin velocidad
+      const { data: data3, error: error3 } = await this.supabase
+        .from('ubicaciones')
+        .insert({
+          ruta_id: row.ruta_id ?? row.recorrido_id ?? null,
+          latitud: row.lat,
+          longitud: row.lng
+        })
+        .select('*')
+        .single();
+      return { data: data3, error: error3 } as any;
+    } catch (error) {
+      return { data: null, error } as any;
+    }
   }
 
   // Obtener notificaciones
@@ -233,10 +297,17 @@ export class SupabaseService {
 
       const results: any[] = [];
       for (const chunk of chunks) {
+        // Filtrar solo columnas existentes para evitar errores como
+        // "Could not find the 'shape' column of 'rutas' in the schema cache"
+        const sanitized = chunk.map((r) => ({
+          id: r.id,
+          nombre: r.nombre ?? r.nombre_ruta ?? null,
+          descripcion: r.descripcion ?? r.descripcion_ruta ?? null,
+          activa: r.activa ?? true
+        }));
         const { data, error } = await this.supabase
           .from('rutas')
-          // Requiere índice único en 'id' (pk) o la columna que corresponda
-          .upsert(chunk, { onConflict: 'id' });
+          .upsert(sanitized, { onConflict: 'id' });
         if (error) {
           console.error('upsertRutas chunk error:', error);
           return { data: results, error };

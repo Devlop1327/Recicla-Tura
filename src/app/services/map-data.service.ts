@@ -188,6 +188,15 @@ export class MapDataService {
       const items = data?.data ?? [];
       console.log('[MapDataService] /rutas (con perfil_id) ->', items.length, 'items');
       this.rutas.set(items);
+      // Si no hay rutas o vienen sin shape, intentar fallback Supabase view 'rutas_geojson'
+      const hasAnyShape = (items || []).some(r => !!(r as any)?.shape);
+      if (!hasAnyShape) {
+        const supa = await this.loadRutasFromSupabaseGeojson();
+        if (supa.length > 0) {
+          this.rutas.set(supa);
+          return supa;
+        }
+      }
       return items;
     } catch (e: any) {
       console.warn('[MapDataService] /rutas con perfil_id falló, intentando sin parámetro...', { status: e?.status, message: e?.message || e });
@@ -197,16 +206,50 @@ export class MapDataService {
         );
         const items2 = data2?.data ?? [];
         console.log('[MapDataService] /rutas (sin perfil_id) ->', items2.length, 'items');
+        // Fallback a Supabase si no hay shape
+        const hasAnyShape2 = (items2 || []).some(r => !!(r as any)?.shape);
+        if (!hasAnyShape2) {
+          const supa = await this.loadRutasFromSupabaseGeojson();
+          if (supa.length > 0) {
+            this.rutas.set(supa);
+            return supa;
+          }
+        }
         this.rutas.set(items2);
         return items2;
       } catch (e2: any) {
         const msg = e2?.message ?? 'Error al cargar rutas';
         console.error('[MapDataService] /rutas error final:', e2);
         this.error.set(msg);
+        // último intento: Supabase view
+        const supa = await this.loadRutasFromSupabaseGeojson();
+        if (supa.length > 0) {
+          this.rutas.set(supa);
+          return supa;
+        }
         return [];
       }
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  private async loadRutasFromSupabaseGeojson(): Promise<RutaApiItem[]> {
+    try {
+      // requiere una vista en Supabase:
+      // create view public.rutas_geojson as
+      // select id, nombre, descripcion, ST_AsGeoJSON(linea::geometry) as shape from public.rutas where linea is not null;
+      const { data, error } = await this.supabase.supabase
+        .from('rutas_geojson')
+        .select('id,nombre,descripcion,shape');
+      if (error) {
+        console.warn('[MapDataService] rutas_geojson view not available:', error?.message || error);
+        return [];
+      }
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map((r: any) => ({ id: r.id, nombre: r.nombre, descripcion: r.descripcion, shape: r.shape } as RutaApiItem));
+    } catch (e) {
+      return [];
     }
   }
 
@@ -250,6 +293,65 @@ export class MapDataService {
       return created;
     } catch (e: any) {
       console.error('[MapDataService] Error creando ruta:', e?.error ?? e);
+      return null;
+    }
+  }
+
+  async deleteRuta(id: string): Promise<boolean> {
+    try {
+      // Intento API externa
+      try {
+        await firstValueFrom(
+          this.http.delete(`${this.baseUrl}/rutas/${id}`, { params: { perfil_id: this.profileId } })
+        );
+      } catch (e) {
+        // Fallback Supabase
+        const { error } = await this.supabase.deleteRuta(id);
+        if (error) throw error;
+      }
+      // Estado local
+      const curr = this.rutas();
+      this.rutas.set((curr || []).filter(r => r.id !== id));
+      return true;
+    } catch (e) {
+      console.error('[MapDataService] deleteRuta error:', e);
+      return false;
+    }
+  }
+
+  async updateRuta(id: string, updates: { nombre?: string; descripcion?: string; shape?: any }): Promise<RutaApiItem | null> {
+    try {
+      let updated: RutaApiItem | null = null;
+      const body: any = {
+        nombre: updates.nombre,
+        nombre_ruta: updates.nombre,
+        descripcion: updates.descripcion,
+        descripcion_ruta: updates.descripcion,
+        shape: updates.shape ? JSON.stringify(updates.shape) : undefined,
+        shape_ruta: updates.shape ? JSON.stringify(updates.shape) : undefined,
+        perfil_id: this.profileId
+      };
+      try {
+        const resp = await firstValueFrom(
+          this.http.put<{ data: RutaApiItem }>(`${this.baseUrl}/rutas/${id}`, body)
+        );
+        updated = resp?.data ?? null;
+      } catch (e) {
+        const { data, error } = await this.supabase.supabase
+          .from('rutas')
+          .update({ nombre: updates.nombre, descripcion: updates.descripcion, shape: updates.shape ? JSON.stringify(updates.shape) : undefined })
+          .eq('id', id)
+          .select('*')
+          .single();
+        if (error) throw error;
+        updated = data as any;
+      }
+      const list = this.rutas();
+      const next = (list || []).map(r => (r.id === id ? { ...r, ...updated } as any : r));
+      this.rutas.set(next);
+      return updated;
+    } catch (e) {
+      console.error('[MapDataService] updateRuta error:', e);
       return null;
     }
   }
@@ -333,7 +435,26 @@ export class MapDataService {
         timestamp: p.timestamp || p.created_at || new Date().toISOString()
       } as PosicionApiItem));
     } catch {
-      return [];
+      // Fallback: leer desde Supabase
+      try {
+        const { data, error } = await this.supabase.supabase
+          .from('ubicaciones')
+          .select('*')
+          .eq('recorrido_id', recorridoId)
+          .order('created_at', { ascending: true });
+        if (error) return [];
+        const rows = Array.isArray(data) ? data : [];
+        return rows.map((r: any) => ({
+          id: r.id,
+          recorrido_id: r.recorrido_id ?? recorridoId,
+          lat: (r.lat ?? r.latitud) as number,
+          lng: (r.lng ?? r.longitud) as number,
+          velocidad: r.velocidad ?? null,
+          timestamp: r.created_at || r.updated_at || new Date().toISOString()
+        } as PosicionApiItem)).filter(p => typeof p.lat === 'number' && typeof p.lng === 'number');
+      } catch {
+        return [];
+      }
     }
   }
 

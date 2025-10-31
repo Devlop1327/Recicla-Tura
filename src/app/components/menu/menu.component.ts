@@ -50,28 +50,55 @@ import { SupabaseService } from '../../services/supabase.service';
 
     <ion-content>
       <ion-list>
-        <ion-item button (click)="navigateTo('home')">
-          <ion-icon slot="start" name="home-outline"></ion-icon>
-          <ion-label>Inicio</ion-label>
-        </ion-item>
-
-        <ion-item button (click)="navigateTo('vehicles')">
-          <ion-icon slot="start" name="car-outline"></ion-icon>
-          <ion-label>Vehículos</ion-label>
-        </ion-item>
-
-        <ion-item button (click)="navigateTo('notifications')">
-          <ion-icon slot="start" name="notifications-outline"></ion-icon>
-          <ion-label>Notificaciones</ion-label>
-          <ion-badge *ngIf="unreadNotifications > 0" slot="end" color="danger">
-            {{ unreadNotifications }}
-          </ion-badge>
-        </ion-item>
-
-        <ion-item button (click)="navigateTo('profile')">
-          <ion-icon slot="start" name="person-outline"></ion-icon>
-          <ion-label>Perfil</ion-label>
-        </ion-item>
+        @if (role() === 'admin') {
+          <ion-item button (click)="navigateAbs('/admin/dashboard')">
+            <ion-icon slot="start" name="home-outline"></ion-icon>
+            <ion-label>Dashboard</ion-label>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/admin/users')">
+            <ion-icon slot="start" name="people-outline"></ion-icon>
+            <ion-label>Usuarios</ion-label>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/admin/routes')">
+            <ion-icon slot="start" name="map-outline"></ion-icon>
+            <ion-label>Rutas</ion-label>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/admin/vehicles')">
+            <ion-icon slot="start" name="car-outline"></ion-icon>
+            <ion-label>Vehículos</ion-label>
+          </ion-item>
+        } @else if (role() === 'conductor') {
+          <ion-item button (click)="navigateAbs('/conductor/rutas')">
+            <ion-icon slot="start" name="map-outline"></ion-icon>
+            <ion-label>Rutas asignadas</ion-label>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/conductor/recorrido')">
+            <ion-icon slot="start" name="navigate-outline"></ion-icon>
+            <ion-label>Recorrido</ion-label>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/mapa')">
+            <ion-icon slot="start" name="map"></ion-icon>
+            <ion-label>Mapa</ion-label>
+          </ion-item>
+        } @else {
+          <ion-item button (click)="navigateAbs('/tabs/home')">
+            <ion-icon slot="start" name="home-outline"></ion-icon>
+            <ion-label>Inicio</ion-label>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/tabs/notifications')">
+            <ion-icon slot="start" name="notifications-outline"></ion-icon>
+            <ion-label>Notificaciones</ion-label>
+            <ion-badge *ngIf="unreadNotifications > 0" slot="end" color="danger">{{ unreadNotifications }}</ion-badge>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/tabs/profile')">
+            <ion-icon slot="start" name="person-outline"></ion-icon>
+            <ion-label>Perfil</ion-label>
+          </ion-item>
+          <ion-item button (click)="navigateAbs('/mapa')">
+            <ion-icon slot="start" name="map-outline"></ion-icon>
+            <ion-label>Mapa</ion-label>
+          </ion-item>
+        }
 
         <ion-item button (click)="logout()">
           <ion-icon slot="start" name="log-out-outline"></ion-icon>
@@ -88,9 +115,13 @@ export class MenuComponent {
   
   unreadNotifications = 0;
 
-  async navigateTo(route: string) {
+  role(): 'admin' | 'conductor' | 'cliente' | null {
+    return this.supabaseService.currentRole?.() ?? null;
+  }
+
+  async navigateAbs(path: string) {
     await this.menuCtrl.close();
-    this.router.navigate(['/tabs', route]);
+    this.router.navigateByUrl(path);
   }
 
   async closeMenu() {

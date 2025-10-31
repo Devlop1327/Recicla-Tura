@@ -142,8 +142,12 @@ export class LoginPage {
         }
       }
       this.supabaseService.setCurrentRole(role);
-      // Redirigir según rol
-      const target = role === 'admin' ? '/admin' : (role === 'conductor' ? '/conductor/rutas' : '/mapa');
+      // Redirigir a dashboards por rol
+      const target = role === 'admin'
+        ? '/admin/dashboard'
+        : role === 'conductor'
+          ? '/tabs/home'
+          : '/tabs/home';
       console.log('Navegando según rol:', role, '=>', target);
       await this.router.navigateByUrl(target, { replaceUrl });
     } catch (err) {

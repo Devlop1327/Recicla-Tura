@@ -83,6 +83,10 @@ export const routes: Routes = [
       {
         path: 'vehicles',
         loadComponent: () => import('./pages/admin/admin-vehicles.page').then(m => m.AdminVehiclesPage)
+      },
+      {
+        path: 'settings',
+        loadComponent: () => import('./pages/admin/admin-settings.page').then(m => m.AdminSettingsPage)
       }
     ]
   },
@@ -97,3 +101,4 @@ export const routes: Routes = [
     redirectTo: '/login'
   }
 ];
+

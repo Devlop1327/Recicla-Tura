@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, computed } from '@angular/core';
 import { IonicModule, AlertController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -16,6 +16,7 @@ export class ConductorRutasPage {
   rutas = signal<Array<{ id: string; nombre: string }>>([]);
   isLoading = signal(false);
   vehiculos = signal<Vehiculo[]>([]);
+  activo = computed(() => this.recorridos.hasActiveRecorrido());
 
   constructor(
     private recorridos: RecorridosService,
@@ -41,6 +42,9 @@ export class ConductorRutasPage {
   async seleccionar(rutaId: string) {
     const vehs = this.vehiculos();
     let selected: string | null = vehs[0]?.id || null;
+    const ruta = this.rutas().find(r => r.id === rutaId) || null;
+    // Guardar metadata para la siguiente vista
+    this.recorridos.setCurrentRouteMeta(rutaId, ruta?.nombre ?? null);
     if (vehs.length > 0) {
       const alert = await this.alertCtrl.create({
         header: 'Selecciona tu vehículo',
@@ -72,5 +76,16 @@ export class ConductorRutasPage {
       const target = ev?.target as HTMLIonRefresherElement | undefined;
       target?.complete?.();
     }
+  }
+
+  continuarRecorrido() {
+    if (this.activo()) {
+      this.router.navigateByUrl('/conductor/recorrido');
+    }
+  }
+
+  async finalizarActual() {
+    if (!this.activo()) return;
+    await this.recorridos.stopRecorrido();
   }
 }

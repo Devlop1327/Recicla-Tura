@@ -1,0 +1,164 @@
+http://apirecoleccion.gonzaloandreslucio.com/api/misrecorridos?perfil_id=3c4e03f8-102a-47c8-b4bc-6e86b7cdef07
+andpoint listar recorridos por perfil
+
+
+
+POST
+/api/recorridos/iniciar
+Iniciar un nuevo recorrido
+
+Crea un nuevo registro de recorrido asociado a un perfil.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+Example Value
+Schema
+{
+  "ruta_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "vehiculo_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "perfil_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+}
+
+
+
+
+POST
+/api/recorridos/{recorrido}/finalizar
+Finalizar un recorrido existente
+
+Parameters
+Try it out
+Name	Description
+recorrido *
+string($uuid)
+(path)
+ID del recorrido a finalizar.
+
+recorrido
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "perfil_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+}
+
+
+
+
+
+GET
+/api/rutas
+Listar rutas por perfil
+
+Devuelve todas las rutas asociadas al perfil especificado por su UUID.
+
+Parameters
+Try it out
+Name	Description
+perfil_id *
+string($uuid)
+(query)
+UUID del perfil
+
+a1b2c3d4-e5f6-7890-abcd-1234567890ab
+Responses
+Code	Description	Links
+200	
+Listado de rutas
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "data": [
+    {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "perfil_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "nombre_ruta": "Ruta Centro",
+      "color_hex": "#FF5733",
+      "shape": "string",
+      "created_at": "2025-10-31T00:54:54.755Z",
+      "updated_at": "2025-10-31T00:54:54.755Z"
+    }
+  ]
+}
+
+
+
+POST
+/api/rutas
+Crear una nueva ruta
+
+Envía 'shape' (GeoJSON como cadena u objeto) O 'calles_ids' (array de UUIDs). Debe venir uno de los dos.
+
+Parameters
+Try it out
+No parameters
+
+Request body
+
+application/json
+Example Value
+Schema
+{
+  "nombre_ruta": "Ruta Solo Geometría",
+  "perfil_id": "18851282-1a08-42b7-9384-243cc2ead349",
+  "shape": "string",
+  "calles_ids": [
+    "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+  ]
+}
+
+
+
+
+GET
+/api/rutas/{id}
+Obtener detalles de una ruta
+
+Devuelve los detalles de una ruta, incluyendo geometría, horarios y calles asociadas. Requiere autorización a través del perfil.
+
+Parameters
+Try it out
+Name	Description
+id *
+string($uuid)
+(path)
+ID de la ruta
+
+id
+perfil_id *
+string($uuid)
+(query)
+ID del perfil propietario para validar autorización
+
+perfil_id
+Responses
+Code	Description	Links
+200	
+Detalles de la ruta
+
+Media type
+
+application/json
+Controls Accept header.
+Example Value
+Schema
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "perfil_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "nombre_ruta": "Ruta Centro",
+  "color_hex": "#FF5733",
+  "shape": "string",
+  "created_at": "2025-10-31T00:56:18.119Z",
+  "updated_at": "2025-10-31T00:56:18.119Z"
+}

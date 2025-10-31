@@ -19,6 +19,7 @@ export class MapaPage implements AfterViewInit {
   private map: any;
   private callesLayer: L.GeoJSON | null = null;
   private rutasLayer: L.GeoJSON | null = null;
+  private selectedRutaLayer: L.GeoJSON | L.Polyline | null = null;
   private recorridoPolyline: L.Polyline | null = null;
   private recorridoMarker: L.Marker | null = null;
   private posicionesTimer: any = null;
@@ -30,6 +31,7 @@ export class MapaPage implements AfterViewInit {
   readonly supportsRecorridos = environment.api.supportsRecorridos ?? false;
   userRole = signal<'admin' | 'conductor' | 'cliente' | null>(null);
   editing = signal(false);
+  editingSelected = signal(false);
   private draftPoints: L.LatLng[] = [];
   private draftMarkers: L.Marker[] = [];
   private draftPolyline: L.Polyline | null = null;
@@ -53,6 +55,40 @@ export class MapaPage implements AfterViewInit {
     this.loadUserRole();
     // Tras cargar el rol, iniciar observación para clientes
     setTimeout(() => this.watchActiveRecorridosForClients(), 0);
+  }
+
+  onSelectRuta(ev: CustomEvent) {
+    const id = (ev.detail as any)?.value ?? null;
+    this.selectedRutaId.set(id);
+    if (id) this.highlightSelectedRuta(id);
+    else this.clearSelectedRuta();
+  }
+
+  private clearSelectedRuta() {
+    if (!this.map) return;
+    if (this.selectedRutaLayer) {
+      (this.map as L.Map).removeLayer(this.selectedRutaLayer as any);
+      this.selectedRutaLayer = null;
+    }
+  }
+
+  private highlightSelectedRuta(id: string) {
+    if (!this.map) return;
+    this.clearSelectedRuta();
+    const r = (this.rutas() || []).find(x => x.id === id);
+    if (!r || !r.shape) return;
+    try {
+      const geom = JSON.parse(r.shape) as GeoJSON.LineString;
+      if (geom.type !== 'LineString') return;
+      const layer = L.geoJSON({ type: 'Feature', geometry: geom } as any, {
+        style: () => ({ color: '#e91e63', weight: 5, opacity: 1 })
+      }).addTo(this.map as L.Map);
+      this.selectedRutaLayer = layer;
+      const bounds = (layer as any).getBounds?.();
+      if (bounds) {
+        (this.map as L.Map).fitBounds(bounds.pad(0.2));
+      }
+    } catch {}
   }
 
   // Observa recorridos activos para clientes y actualiza el mapa
@@ -276,6 +312,7 @@ export class MapaPage implements AfterViewInit {
     if (this.userRole() !== 'admin') return;
     const next = !this.editing();
     this.editing.set(next);
+    if (!next) this.editingSelected.set(false);
     if (!this.map) return;
     if (next) {
       this.map.on('click', this.onMapClick as any);
@@ -347,6 +384,55 @@ export class MapaPage implements AfterViewInit {
       this.clearDraft();
       if (this.editing()) this.toggleEditing();
     }
+  }
+
+  async startEditSelectedRuta() {
+    if (this.userRole() !== 'admin') return;
+    const id = this.selectedRutaId();
+    if (!id) return;
+    const rutas = this.rutas();
+    const r = (rutas || []).find(x => x.id === id);
+    if (!r || !r.shape) return;
+    try {
+      const geom = JSON.parse(r.shape) as GeoJSON.LineString;
+      if (geom.type !== 'LineString') return;
+      this.clearDraft();
+      // cargar puntos existentes a draft
+      this.draftPoints = (geom.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
+      if (this.map) {
+        this.draftPolyline = L.polyline(this.draftPoints, { color: '#e91e63', weight: 3 }).addTo(this.map as L.Map);
+        this.draftMarkers = this.draftPoints.map((pt, idx) => L.marker(pt, { title: `Punto ${idx + 1}` }).addTo(this.map as L.Map));
+        const bounds = this.draftPolyline.getBounds();
+        (this.map as L.Map).fitBounds(bounds.pad(0.2));
+      }
+      if (!this.editing()) this.toggleEditing();
+      this.editingSelected.set(true);
+    } catch {}
+  }
+
+  async saveEditedRuta() {
+    if (this.userRole() !== 'admin') return;
+    if (!this.editingSelected()) return;
+    const id = this.selectedRutaId();
+    if (!id) return;
+    if (this.draftPoints.length < 2) return;
+    const coords: [number, number][] = this.draftPoints.map(p => [p.lng, p.lat]);
+    const shape: GeoJSON.LineString = { type: 'LineString', coordinates: coords } as any;
+    const updated = await this.mapData.updateRuta(id, { shape });
+    if (updated) {
+      await this.loadRutasLayer();
+      this.highlightSelectedRuta(id);
+      this.clearDraft();
+      this.editingSelected.set(false);
+      if (this.editing()) this.toggleEditing();
+    }
+  }
+
+  cancelEditRuta() {
+    if (!this.editingSelected()) return;
+    this.clearDraft();
+    this.editingSelected.set(false);
+    if (this.editing()) this.toggleEditing();
   }
 
   async saveDraftAsCalle() {

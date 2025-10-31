@@ -105,9 +105,11 @@ export class VehiclesPage implements OnInit {
     }
 
     try {
-      if (this.editingId) {
-        console.log('Actualizando vehículo:', this.editingId, payload);
-        await this.api.updateVehiculo(this.editingId, payload);
+      const wasEditing = !!this.editingId;
+      if (wasEditing) {
+        const id = this.editingId as string;
+        console.log('Actualizando vehículo:', id, payload);
+        await this.api.updateVehiculo(id, payload);
       } else {
         console.log('Creando nuevo vehículo:', payload);
         await this.api.createVehiculo(payload);
@@ -122,14 +124,14 @@ export class VehiclesPage implements OnInit {
       // Mostrar mensaje de éxito
       await this.showAlert(
         '¡Éxito!', 
-        `Vehículo ${this.editingId ? 'actualizado' : 'creado'} correctamente`
+        `Vehículo ${wasEditing ? 'editado' : 'creado'} correctamente`
       );
       
     } catch (error) {
       console.error('Error guardando vehículo:', error);
       await this.showAlert(
         'Error', 
-        `No se pudo ${this.editingId ? 'actualizar' : 'crear'} el vehículo. Por favor, intente de nuevo.`
+        `No se pudo ${this.editingId ? 'editar' : 'crear'} el vehículo. Por favor, intente de nuevo.`
       );
     }
   }

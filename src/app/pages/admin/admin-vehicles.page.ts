@@ -1,25 +1,23 @@
 import { Component } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
+import { VehiclesPage } from '../vehicles/vehicles.page';
 
 @Component({
   selector: 'app-admin-vehicles',
   standalone: true,
-  imports: [IonicModule, CommonModule],
+  imports: [IonicModule, CommonModule, VehiclesPage],
   template: `
     <ion-header>
       <ion-toolbar>
+        <ion-buttons slot="start">
+          <ion-menu-button autoHide="false"></ion-menu-button>
+        </ion-buttons>
         <ion-title>Vehículos</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content>
-      <ion-list inset>
-        <ion-item lines="none">
-          <ion-label>
-            <h2>Gestión de vehículos</h2>
-          </ion-label>
-        </ion-item>
-      </ion-list>
+      <app-vehicles></app-vehicles>
     </ion-content>
   `,
 })

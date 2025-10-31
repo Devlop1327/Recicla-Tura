@@ -1,1 +1,11 @@
  
+#recorrido-map {
+  height: calc(100vh - 380px);
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  #recorrido-map {
+    height: calc(100vh - 320px);
+  }
+}
