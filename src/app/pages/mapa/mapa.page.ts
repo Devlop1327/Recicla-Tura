@@ -27,6 +27,11 @@ export class MapaPage implements AfterViewInit {
   private routeCoords: L.LatLng[] = [];
   private simTimer: any = null;
   private simIndex = 0;
+  private simPolyline: L.Polyline | null = null;
+  private simMarker: L.Marker | null = null;
+  private vehicleIcon: L.Icon | null = null;
+  realTracking = signal(true);
+  private watchId: number | null = null;
   showCalles = signal(true);
   showRutas = signal(true);
   rutas = signal<RutaApiItem[]>([]);
@@ -61,6 +66,66 @@ export class MapaPage implements AfterViewInit {
     this.loadRutasLayer();
     // Cargar rol y luego iniciar observación para clientes
     this.loadUserRole().then(() => this.watchActiveRecorridosForClients());
+  }
+
+  onToggleRealTracking(ev: CustomEvent) {
+    const value = (ev.detail as any)?.checked ?? true;
+    const prev = this.realTracking();
+    if (value === prev) return;
+    this.realTracking.set(value);
+    const hasActive = !!this.activeRecorrido();
+    if (!hasActive) return;
+    // Cambiar modos en caliente
+    if (value) {
+      if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+      this.startRealTracking();
+    } else {
+      if (this.watchId !== null) { navigator.geolocation?.clearWatch?.(this.watchId); this.watchId = null; }
+      this.startSimulation();
+    }
+  }
+
+  private startRealTracking() {
+    // Ensure map and polyline/marker
+    if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); }
+    this.simPolyline = L.polyline([], { color: '#2ecc71', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
+    if (this.simMarker && this.map) { (this.map as L.Map).removeLayer(this.simMarker); }
+    this.simMarker = null;
+    if (!('geolocation' in navigator)) {
+      return;
+    }
+    if (this.watchId !== null) return;
+    this.watchId = navigator.geolocation.watchPosition(
+      async pos => {
+        const rec = this.activeRecorrido();
+        const rutaId = this.selectedRutaId();
+        if (!rec || !rutaId) return;
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const vel = Number.isFinite(pos.coords.speed || NaN) ? (pos.coords.speed as number) : 5;
+        if (rec.id && !rec.id.startsWith('local-')) {
+          await this.mapData.registrarPosicion(rec.id, lat, lng, vel);
+        }
+        try {
+          await this.supabaseSvc.createUbicacion({ recorrido_id: rec.id, ruta_id: rutaId, lat, lng, velocidad: vel });
+        } catch {}
+        // Update visuals
+        if (this.simPolyline) {
+          const pts = (this.simPolyline.getLatLngs() as L.LatLng[]);
+          pts.push(L.latLng(lat, lng));
+          this.simPolyline.setLatLngs(pts);
+        }
+        const ll: L.LatLngExpression = [lat, lng];
+        if (this.simMarker) {
+          this.simMarker.setLatLng(ll);
+        } else {
+          this.simMarker = L.marker(ll, { title: 'Vehículo', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
+        }
+        (this.map as L.Map).panTo(ll, { animate: true });
+      },
+      _err => {},
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+    );
   }
 
   onSelectRuta(ev: CustomEvent) {
@@ -105,12 +170,12 @@ export class MapaPage implements AfterViewInit {
       }
       this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
       const layer = L.geoJSON({ type: 'Feature', geometry: line } as any, {
-        style: () => ({ color: '#e91e63', weight: 5, opacity: 1 })
+        style: () => ({ color: '#0749ffff', weight: 5, opacity: 1 })
       }).addTo(this.map as L.Map);
       this.selectedRutaLayer = layer;
       // Fallback visual con polyline explícita
       try {
-        const pl = L.polyline(this.routeCoords, { color: '#e91e63', weight: 4, opacity: 0.9 });
+        const pl = L.polyline(this.routeCoords, { color: '#080d5cff', weight: 4, opacity: 0.9 });
         pl.addTo(this.map as L.Map);
       } catch {}
       const bounds = (layer as any).getBounds?.();
@@ -146,7 +211,7 @@ export class MapaPage implements AfterViewInit {
       }
       if (!line || !Array.isArray(line.coordinates)) return;
       this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
-      const pl = L.polyline(this.routeCoords, { color: '#e91e63', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
+      const pl = L.polyline(this.routeCoords, { color: '#1e76e983', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
       const bounds = pl.getBounds?.();
       if (bounds) {
         (this.map as L.Map).fitBounds(bounds.pad(0.2));
@@ -208,6 +273,17 @@ export class MapaPage implements AfterViewInit {
     // Add marker
     const marker = L.marker([3.8833, -77.0167]).addTo(this.map);
     marker.bindPopup('Buenaventura, Colombia').openPopup();
+
+    // Prepare vehicle icon
+    try {
+      this.vehicleIcon = L.icon({
+        iconUrl: 'assets/marker-icon.png',
+        iconRetinaUrl: 'assets/marker-icon-2x.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        shadowUrl: undefined
+      });
+    } catch {}
   }
 
   // Ionic lifecycle hook, called when the page has fully entered and is now the active page
@@ -240,6 +316,18 @@ export class MapaPage implements AfterViewInit {
       clearInterval(this.simTimer);
       this.simTimer = null;
     }
+    if (this.simPolyline && this.map) {
+      (this.map as L.Map).removeLayer(this.simPolyline);
+      this.simPolyline = null;
+    }
+    if (this.simMarker && this.map) {
+      (this.map as L.Map).removeLayer(this.simMarker);
+      this.simMarker = null;
+    }
+    if (this.watchId !== null) {
+      navigator.geolocation?.clearWatch?.(this.watchId);
+      this.watchId = null;
+    }
     if (this.map) {
       this.map.remove();
       this.map = null;
@@ -261,6 +349,8 @@ export class MapaPage implements AfterViewInit {
       } else {
         this.userRole.set('cliente');
       }
+      // Por defecto, el conductor usa ubicación real
+      if (this.userRole() === 'conductor') this.realTracking.set(true);
     } catch {
       this.userRole.set('cliente');
     }
@@ -399,7 +489,7 @@ export class MapaPage implements AfterViewInit {
     if (this.draftPolyline) {
       this.draftPolyline.setLatLngs(this.draftPoints);
     } else {
-      this.draftPolyline = L.polyline(this.draftPoints, { color: '#e91e63', weight: 3 }).addTo(this.map);
+      this.draftPolyline = L.polyline(this.draftPoints, { color: '#1409a7ff', weight: 3 }).addTo(this.map);
     }
     const m = L.marker(e.latlng, { title: `Punto ${this.draftPoints.length}` });
     m.addTo(this.map as L.Map);
@@ -583,7 +673,7 @@ export class MapaPage implements AfterViewInit {
     if (rec) {
       this.activeRecorrido.set(rec);
       this.beginPollingPosiciones(rec.id);
-      this.startSimulation();
+      if (this.realTracking()) this.startRealTracking(); else this.startSimulation();
     } else {
       const local: RecorridoApiItem = {
         id: `local-${rutaId}-${Date.now()}`,
@@ -595,7 +685,7 @@ export class MapaPage implements AfterViewInit {
       this.activeRecorrido.set(local);
       this.beginPollingPosiciones(local.id);
       this.beginPromoteLocalRecorrido(local);
-      this.startSimulation();
+      if (this.realTracking()) this.startRealTracking(); else this.startSimulation();
     }
   }
 
@@ -626,6 +716,9 @@ export class MapaPage implements AfterViewInit {
         if (this.posicionesTimer) clearInterval(this.posicionesTimer);
         if (this.promoteTimer) clearInterval(this.promoteTimer);
         if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+        if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); this.simPolyline = null; }
+        if (this.simMarker && this.map) { (this.map as L.Map).removeLayer(this.simMarker); this.simMarker = null; }
+        if (this.watchId !== null) { navigator.geolocation?.clearWatch?.(this.watchId); this.watchId = null; }
       }
     } catch {}
   }
@@ -672,6 +765,11 @@ export class MapaPage implements AfterViewInit {
     if (!rutaId || !coords || coords.length < 2) return;
     this.simIndex = 0;
     const stepMs = 1000;
+    // Reset progress polyline and marker
+    if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); }
+    this.simPolyline = L.polyline([], { color: '#2ecc71', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
+    if (this.simMarker && this.map) { (this.map as L.Map).removeLayer(this.simMarker); }
+    this.simMarker = null;
     this.simTimer = setInterval(async () => {
       const rec = this.activeRecorrido();
       if (!rec) { clearInterval(this.simTimer); this.simTimer = null; return; }
@@ -686,6 +784,22 @@ export class MapaPage implements AfterViewInit {
       try {
         await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId, lat, lng, velocidad: 5 });
       } catch {}
+      // Update progress polyline
+      if (this.simPolyline) {
+        const pts = (this.simPolyline.getLatLngs() as L.LatLng[]);
+        pts.push(L.latLng(lat, lng));
+        this.simPolyline.setLatLngs(pts);
+      }
+      // Update moving vehicle marker
+      const ll: L.LatLngExpression = [lat, lng];
+      if (this.simMarker) {
+        this.simMarker.setLatLng(ll);
+      } else {
+        this.simMarker = L.marker(ll, { title: 'Vehículo', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
+      }
+      // Keep view following the vehicle softly
+      const z = Math.max((this.map as L.Map).getZoom(), 14);
+      (this.map as L.Map).panTo(ll, { animate: true });
       this.simIndex++;
       if (this.simIndex >= coords.length) {
         clearInterval(this.simTimer);

@@ -30,6 +30,10 @@
     </ion-item>
     @if (supportsRecorridos) {
       @if (userRole() === 'conductor') {
+        <ion-item>
+          <ion-label>Ubicación real</ion-label>
+          <ion-toggle slot="end" [checked]="realTracking()" (ionChange)="onToggleRealTracking($event)"></ion-toggle>
+        </ion-item>
         <ion-item lines="none">
           <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
             Iniciar Recorrido
