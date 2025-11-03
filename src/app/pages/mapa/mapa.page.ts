@@ -98,16 +98,60 @@ export class MapaPage implements AfterViewInit {
         const first = (geo.features || []).find((f: any) => f?.geometry?.type === 'LineString');
         line = first?.geometry ?? null;
       }
-      if (!line || !Array.isArray(line.coordinates)) return;
+      if (!line || !Array.isArray(line.coordinates)) {
+        // Fallback: intentar obtener shape desde Supabase view rutas_geojson
+        this.fetchAndDrawRutaFromSupabase(id);
+        return;
+      }
       this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
       const layer = L.geoJSON({ type: 'Feature', geometry: line } as any, {
         style: () => ({ color: '#e91e63', weight: 5, opacity: 1 })
       }).addTo(this.map as L.Map);
       this.selectedRutaLayer = layer;
+      // Fallback visual con polyline explícita
+      try {
+        const pl = L.polyline(this.routeCoords, { color: '#e91e63', weight: 4, opacity: 0.9 });
+        pl.addTo(this.map as L.Map);
+      } catch {}
       const bounds = (layer as any).getBounds?.();
       if (bounds) {
         (this.map as L.Map).fitBounds(bounds.pad(0.2));
       }
+      // Asegurar que el mapa recompute tamaño tras pintar
+      setTimeout(() => (this.map as L.Map)?.invalidateSize?.(), 0);
+    } catch {}
+  }
+
+  private async fetchAndDrawRutaFromSupabase(id: string) {
+    try {
+      const { data, error } = await this.supabaseSvc.supabase
+        .from('rutas_geojson')
+        .select('shape')
+        .eq('id', id)
+        .single();
+      if (error) return;
+      const shapeRaw = (data as any)?.shape ?? null;
+      if (!shapeRaw) return;
+      let geo: any = null;
+      try { geo = typeof shapeRaw === 'string' ? JSON.parse(shapeRaw) : shapeRaw; } catch { geo = null; }
+      if (!geo) return;
+      let line: GeoJSON.LineString | null = null;
+      if (geo.type === 'LineString') {
+        line = geo as GeoJSON.LineString;
+      } else if (geo.type === 'Feature' && geo.geometry?.type === 'LineString') {
+        line = geo.geometry as GeoJSON.LineString;
+      } else if (geo.type === 'FeatureCollection') {
+        const first = (geo.features || []).find((f: any) => f?.geometry?.type === 'LineString');
+        line = first?.geometry ?? null;
+      }
+      if (!line || !Array.isArray(line.coordinates)) return;
+      this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
+      const pl = L.polyline(this.routeCoords, { color: '#e91e63', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
+      const bounds = pl.getBounds?.();
+      if (bounds) {
+        (this.map as L.Map).fitBounds(bounds.pad(0.2));
+      }
+      setTimeout(() => (this.map as L.Map)?.invalidateSize?.(), 0);
     } catch {}
   }
 
