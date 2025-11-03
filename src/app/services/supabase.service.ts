@@ -178,53 +178,20 @@ export class SupabaseService {
 
   async createUbicacion(row: { recorrido_id?: string | null; ruta_id?: string | null; lat: number; lng: number; velocidad?: number | null }) {
     try {
-      // Intento estándar: columnas lat/lng/velocidad
+      // Ajustado al esquema actual: latitud/longitud, sin columna 'velocidad'
+      const payload: any = {
+        latitud: row.lat,
+        longitud: row.lng
+      };
+      if (row.ruta_id) payload.ruta_id = row.ruta_id;
+      else if (row.recorrido_id) payload.recorrido_id = row.recorrido_id;
+
       const { data, error } = await this.supabase
         .from('ubicaciones')
-        .insert({
-          recorrido_id: row.recorrido_id ?? null,
-          lat: row.lat,
-          lng: row.lng,
-          velocidad: row.velocidad ?? null
-        })
+        .insert(payload)
         .select('*')
         .single();
-      if (!error) return { data, error } as any;
-      // Fallback 1: usar latitud/longitud (esquemas alternos)
-      const { data: data2, error: error2 } = await this.supabase
-        .from('ubicaciones')
-        .insert({
-          recorrido_id: row.recorrido_id ?? null,
-          latitud: row.lat,
-          longitud: row.lng,
-          velocidad: row.velocidad ?? null
-        })
-        .select('*')
-        .single();
-      if (!error2) return { data: data2, error: error2 } as any;
-      // Fallback 2: si tu tabla usa ruta_id en lugar de recorrido_id
-      const { data: data3a, error: error3a } = await this.supabase
-        .from('ubicaciones')
-        .insert({
-          ruta_id: row.ruta_id ?? null,
-          latitud: row.lat,
-          longitud: row.lng,
-          velocidad: row.velocidad ?? null
-        })
-        .select('*')
-        .single();
-      if (!error3a) return { data: data3a, error: error3a } as any;
-      // Fallback 2: sin velocidad
-      const { data: data3, error: error3 } = await this.supabase
-        .from('ubicaciones')
-        .insert({
-          ruta_id: row.ruta_id ?? row.recorrido_id ?? null,
-          latitud: row.lat,
-          longitud: row.lng
-        })
-        .select('*')
-        .single();
-      return { data: data3, error: error3 } as any;
+      return { data, error } as any;
     } catch (error) {
       return { data: null, error } as any;
     }
