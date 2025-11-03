@@ -29,9 +29,14 @@ export class MapaPage implements AfterViewInit {
   private simIndex = 0;
   private simPolyline: L.Polyline | null = null;
   private simMarker: L.Marker | null = null;
+  private simPath: L.LatLng[] = [];
   private vehicleIcon: L.Icon | null = null;
   realTracking = signal(true);
   private watchId: number | null = null;
+  private snapIndex = 0;
+  private snapSeg = 0;
+  private lastSnap: L.LatLng | null = null;
+  private finishPromptShown = false;
   showCalles = signal(true);
   showRutas = signal(true);
   rutas = signal<RutaApiItem[]>([]);
@@ -68,6 +73,34 @@ export class MapaPage implements AfterViewInit {
     this.loadUserRole().then(() => this.watchActiveRecorridosForClients());
   }
 
+  private async maybePromptFinish() {
+    if (this.finishPromptShown) return;
+    if (!this.activeRecorrido()) return;
+    this.finishPromptShown = true;
+    try {
+      const alert = await this.alertCtrl.create({
+        header: 'Fin de la ruta',
+        message: 'Has llegado al final. ¿Deseas finalizar el recorrido ahora o hacerlo manualmente?',
+        buttons: [
+          {
+            text: 'Manual',
+            role: 'cancel',
+            handler: () => {}
+          },
+          {
+            text: 'Finalizar ahora',
+            role: 'confirm',
+            handler: async () => {
+              await this.onFinishRecorrido();
+            }
+          }
+        ]
+      });
+      await alert.present();
+      await alert.onDidDismiss();
+    } catch {}
+  }
+
   onToggleRealTracking(ev: CustomEvent) {
     const value = (ev.detail as any)?.checked ?? true;
     const prev = this.realTracking();
@@ -94,14 +127,29 @@ export class MapaPage implements AfterViewInit {
     if (!('geolocation' in navigator)) {
       return;
     }
+    // Build dense path for snapping
+    if (!this.simPath || this.simPath.length < 2) {
+      if (this.routeCoords && this.routeCoords.length >= 2) {
+        this.simPath = this.densifyRoute(this.routeCoords, 5);
+      } else {
+        this.simPath = [];
+      }
+    }
+    this.snapIndex = 0;
+    this.snapSeg = 0;
+    this.lastSnap = null;
     if (this.watchId !== null) return;
     this.watchId = navigator.geolocation.watchPosition(
       async pos => {
         const rec = this.activeRecorrido();
         const rutaId = this.selectedRutaId();
         if (!rec || !rutaId) return;
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+        const rawLat = pos.coords.latitude;
+        const rawLng = pos.coords.longitude;
+        // Snap to route (forward only)
+        const snap = this.snapToRoute(rawLat, rawLng);
+        const lat = snap?.lat ?? rawLat;
+        const lng = snap?.lng ?? rawLng;
         const vel = Number.isFinite(pos.coords.speed || NaN) ? (pos.coords.speed as number) : 5;
         if (rec.id && !rec.id.startsWith('local-')) {
           await this.mapData.registrarPosicion(rec.id, lat, lng, vel);
@@ -122,10 +170,88 @@ export class MapaPage implements AfterViewInit {
           this.simMarker = L.marker(ll, { title: 'Vehículo', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
         }
         (this.map as L.Map).panTo(ll, { animate: true });
+        // Auto-finish prompt if almost at the end of the route
+        const end = this.simPath?.[this.simPath.length - 1];
+        const distToEnd = end ? L.latLng(lat, lng).distanceTo(end) : Infinity;
+        if (this.simPath && this.simPath.length > 2 && (this.snapSeg >= this.simPath.length - 2 || distToEnd < 15)) {
+          await this.maybePromptFinish();
+        }
       },
       _err => {},
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
     );
+  }
+
+  // Snap a lat/lng to the nearest point ON ROUTE SEGMENTS with forward progress and jump guard
+  private snapToRoute(lat: number, lng: number): { lat: number; lng: number } | null {
+    if (!this.simPath || this.simPath.length < 2) return null;
+    const p = L.latLng(lat, lng);
+    const startSeg = Math.max(0, this.snapSeg - 5);
+    const endSeg = Math.min(this.simPath.length - 2, this.snapSeg + 200);
+    let bestSeg = -1;
+    let bestT = 0;
+    let bestPoint: L.LatLng | null = null;
+    let bestDist = Infinity;
+    for (let i = startSeg; i <= endSeg; i++) {
+      const a = this.simPath[i];
+      const b = this.simPath[i + 1];
+      const proj = this.projectToSegment(p, a, b);
+      if (proj.dist < bestDist) {
+        bestDist = proj.dist;
+        bestSeg = i;
+        bestT = proj.t;
+        bestPoint = proj.point;
+      }
+    }
+    if (bestSeg < 0 || !bestPoint) return this.lastSnap ? { lat: this.lastSnap.lat, lng: this.lastSnap.lng } : null;
+    // Guardar contra saltos laterales grandes (> 60m)
+    const maxLateral = 20;
+    if (bestDist > maxLateral && this.lastSnap) {
+      return { lat: this.lastSnap.lat, lng: this.lastSnap.lng };
+    }
+    // Enforce forward progress: no retroceder segmento
+    if (bestSeg < this.snapSeg) {
+      bestSeg = this.snapSeg;
+      bestPoint = this.simPath[bestSeg];
+      bestT = 0;
+    }
+    // Actualizar índices: avanza a siguiente segmento solo si estás casi al final
+    if (bestT > 0.95) {
+      this.snapSeg = Math.min(bestSeg + 1, this.simPath.length - 2);
+    } else {
+      this.snapSeg = Math.max(this.snapSeg, bestSeg);
+    }
+    this.snapIndex = Math.max(this.snapIndex, bestSeg);
+    this.lastSnap = bestPoint;
+    return { lat: bestPoint.lat, lng: bestPoint.lng };
+  }
+
+  // Proyección de un punto a un segmento AB, retorna punto más cercano, t en [0,1] y distancia
+  private projectToSegment(p: L.LatLng, a: L.LatLng, b: L.LatLng): { point: L.LatLng; t: number; dist: number } {
+    // Convert lat/lng to planar meters (aprox) usando WebMercator simplificado
+    const toXY = (ll: L.LatLng) => {
+      const x = ll.lng * 111320 * Math.cos((ll.lat * Math.PI) / 180);
+      const y = ll.lat * 110540;
+      return { x, y };
+    };
+    const P = toXY(p);
+    const A = toXY(a);
+    const B = toXY(b);
+    const ABx = B.x - A.x;
+    const ABy = B.y - A.y;
+    const APx = P.x - A.x;
+    const APy = P.y - A.y;
+    const denom = ABx * ABx + ABy * ABy || 1;
+    let t = (APx * ABx + APy * ABy) / denom;
+    t = Math.max(0, Math.min(1, t));
+    const Qx = A.x + ABx * t;
+    const Qy = A.y + ABy * t;
+    // Convertir de nuevo a lat/lng aproximado
+    const lat = Qy / 110540;
+    const lng = Qx / (111320 * Math.cos((lat * Math.PI) / 180));
+    const q = L.latLng(lat, lng);
+    const dist = q.distanceTo(p);
+    return { point: q, t, dist };
   }
 
   onSelectRuta(ev: CustomEvent) {
@@ -763,8 +889,11 @@ export class MapaPage implements AfterViewInit {
     const rutaId = this.selectedRutaId();
     const coords = this.routeCoords;
     if (!rutaId || !coords || coords.length < 2) return;
+    // Densificar ruta para pasos cortos (~5m) y evitar saltos
+    this.simPath = this.densifyRoute(coords, 5);
+    if (!this.simPath || this.simPath.length < 2) return;
     this.simIndex = 0;
-    const stepMs = 1000;
+    const stepMs = 250;
     // Reset progress polyline and marker
     if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); }
     this.simPolyline = L.polyline([], { color: '#2ecc71', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
@@ -773,7 +902,7 @@ export class MapaPage implements AfterViewInit {
     this.simTimer = setInterval(async () => {
       const rec = this.activeRecorrido();
       if (!rec) { clearInterval(this.simTimer); this.simTimer = null; return; }
-      const pt = coords[this.simIndex];
+      const pt = this.simPath[this.simIndex];
       if (!pt) { clearInterval(this.simTimer); this.simTimer = null; return; }
       const recId = rec.id;
       const lat = pt.lat;
@@ -801,11 +930,36 @@ export class MapaPage implements AfterViewInit {
       const z = Math.max((this.map as L.Map).getZoom(), 14);
       (this.map as L.Map).panTo(ll, { animate: true });
       this.simIndex++;
-      if (this.simIndex >= coords.length) {
+      if (this.simIndex >= this.simPath.length) {
         clearInterval(this.simTimer);
         this.simTimer = null;
+        // Preguntar cómo finalizar al llegar al final de la ruta
+        await this.maybePromptFinish();
       }
     }, stepMs);
+  }
+
+  // Densifica una polilínea en pasos de longitud máxima maxStepMeters (aprox.)
+  private densifyRoute(input: L.LatLng[], maxStepMeters: number): L.LatLng[] {
+    if (!input || input.length < 2) return input || [];
+    const out: L.LatLng[] = [];
+    for (let i = 0; i < input.length - 1; i++) {
+      const a = input[i];
+      const b = input[i + 1];
+      out.push(a);
+      const dist = a.distanceTo(b);
+      if (dist > maxStepMeters) {
+        const steps = Math.floor(dist / maxStepMeters);
+        for (let s = 1; s < steps; s++) {
+          const t = s / steps;
+          const lat = a.lat + (b.lat - a.lat) * t;
+          const lng = a.lng + (b.lng - a.lng) * t;
+          out.push(L.latLng(lat, lng));
+        }
+      }
+    }
+    out.push(input[input.length - 1]);
+    return out;
   }
 
   private drawRecorrido(posiciones: PosicionApiItem[]) {
