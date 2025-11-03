@@ -1,7 +1,12 @@
 <ion-app>
   <ion-split-pane contentId="main-content" when="(min-width: 768px)">
     <!-- Menú lateral integrado -->
-    <ion-menu menuId="main-menu" contentId="main-content" type="overlay" swipeGesture="true">
+    <ion-menu
+      menuId="main-menu"
+      contentId="main-content"
+      type="overlay"
+      swipeGesture="true"
+    >
       <ion-header>
         <ion-toolbar color="primary">
           <ion-buttons slot="end">
@@ -28,7 +33,11 @@
           <ion-item button (click)="navigateTo('notifications')">
             <ion-icon slot="start" name="notifications-outline"></ion-icon>
             <ion-label>Notificaciones</ion-label>
-            <ion-badge *ngIf="unreadNotifications > 0" slot="end" color="danger">
+            <ion-badge
+              *ngIf="unreadNotifications > 0"
+              slot="end"
+              color="danger"
+            >
               {{ unreadNotifications }}
             </ion-badge>
           </ion-item>
@@ -60,17 +69,29 @@
       <ion-content [fullscreen]="true">
         <ion-tabs>
           <ion-tab-bar slot="bottom">
-            <ion-tab-button tab="home" (click)="updateTitle('Inicio')" (ionSelect)="updateTitle('Inicio')">
+            <ion-tab-button
+              tab="home"
+              (click)="updateTitle('Inicio')"
+              (ionSelect)="updateTitle('Inicio')"
+            >
               <ion-icon name="home-outline"></ion-icon>
               <ion-label>Inicio</ion-label>
             </ion-tab-button>
 
-            <ion-tab-button tab="vehicles" (click)="updateTitle('Vehículos')" (ionSelect)="updateTitle('Vehículos')">
+            <ion-tab-button
+              tab="vehicles"
+              (click)="updateTitle('Vehículos')"
+              (ionSelect)="updateTitle('Vehículos')"
+            >
               <ion-icon name="car-outline"></ion-icon>
               <ion-label>Vehículos</ion-label>
             </ion-tab-button>
 
-            <ion-tab-button tab="notifications" (click)="updateTitle('Notificaciones')" (ionSelect)="updateTitle('Notificaciones')">
+            <ion-tab-button
+              tab="notifications"
+              (click)="updateTitle('Notificaciones')"
+              (ionSelect)="updateTitle('Notificaciones')"
+            >
               <ion-icon name="notifications-outline"></ion-icon>
               <ion-label>Notificaciones</ion-label>
               <ion-badge *ngIf="unreadNotifications > 0" color="danger">
@@ -78,7 +99,11 @@
               </ion-badge>
             </ion-tab-button>
 
-            <ion-tab-button tab="profile" (click)="updateTitle('Perfil')" (ionSelect)="updateTitle('Perfil')">
+            <ion-tab-button
+              tab="profile"
+              (click)="updateTitle('Perfil')"
+              (ionSelect)="updateTitle('Perfil')"
+            >
               <ion-icon name="person-outline"></ion-icon>
               <ion-label>Perfil</ion-label>
             </ion-tab-button>

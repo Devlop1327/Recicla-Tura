@@ -1,4 +1,4 @@
- <ion-content>
+<ion-content>
   <ion-grid class="home-container">
     <!-- Header con información de la ruta seleccionada -->
     <ion-row class="header-section">
@@ -9,35 +9,37 @@
               <ion-col class="route-info">
                 <ion-text>📍 Ruta de Recolección</ion-text>
                 @if (selectedRuta()) {
-                  <ion-text class="ion-margin-top">{{ selectedRuta()!.nombre }}</ion-text>
-                  <ion-text color="medium">{{ selectedRuta()!.descripcion }}</ion-text>
+                <ion-text class="ion-margin-top"
+                  >{{ selectedRuta()!.nombre }}</ion-text
+                >
+                <ion-text color="medium"
+                  >{{ selectedRuta()!.descripcion }}</ion-text
+                >
                 } @else {
-                  <ion-text color="medium">Cargando rutas...</ion-text>
+                <ion-text color="medium">Cargando rutas...</ion-text>
                 }
               </ion-col>
               <ion-col class="status-indicator" size="auto">
                 @if (usingApiData()) {
-                  <ion-badge color="success">🌐 API Activa</ion-badge>
+                <ion-badge color="success">🌐 API Activa</ion-badge>
                 } @else {
-                  <ion-badge color="warning">📱 Datos de Ejemplo</ion-badge>
+                <ion-badge color="warning">📱 Datos de Ejemplo</ion-badge>
                 }
               </ion-col>
             </ion-row>
             @if (apiError()) {
-              <ion-row class="api-error">
-                <ion-col>
-                  <ion-text color="warning">⚠️ {{ apiError() }}</ion-text>
-                </ion-col>
-              </ion-row>
+            <ion-row class="api-error">
+              <ion-col>
+                <ion-text color="warning">⚠️ {{ apiError() }}</ion-text>
+              </ion-col>
+            </ion-row>
             }
             <ion-row class="api-info">
               <ion-col>
                 <ion-text color="medium">
-                  @if (usingApiData()) {
-                    ✅ Vehículos: API | Rutas: {{ rutas().length > 0 ? 'API' : 'Ejemplo' }}
-                  } @else {
-                    📱 Usando datos de ejemplo
-                  }
+                  @if (usingApiData()) { ✅ Vehículos: API | Rutas: {{
+                  rutas().length > 0 ? 'API' : 'Ejemplo' }} } @else { 📱 Usando
+                  datos de ejemplo }
                 </ion-text>
               </ion-col>
             </ion-row>
@@ -48,85 +50,105 @@
 
     <!-- Atajos por rol -->
     @if (role() === 'conductor') {
-      <ion-row class="ion-padding-horizontal ion-padding-bottom">
-        <ion-col size="12">
-          <ion-card>
-            <ion-card-header>
-              <ion-card-title>Hola, Conductor</ion-card-title>
-              <ion-card-subtitle>Accesos rápidos</ion-card-subtitle>
-            </ion-card-header>
-            <ion-card-content>
-              <ion-button expand="block" color="success" (click)="go('/conductor/rutas')">
-                <ion-icon slot="start" name="map-outline"></ion-icon>
-                Rutas asignadas
-              </ion-button>
-              <ion-button expand="block" color="tertiary" (click)="go('/conductor/recorrido')" class="ion-margin-top">
-                <ion-icon slot="start" name="navigate-outline"></ion-icon>
-                Iniciar/continuar recorrido
-              </ion-button>
-              <ion-button expand="block" color="primary" (click)="go('/mapa')" class="ion-margin-top">
-                <ion-icon slot="start" name="map"></ion-icon>
-                Ver mapa
-              </ion-button>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-      </ion-row>
-    }
-
-    @if (role() === 'cliente') {
-      <ion-row class="ion-padding-horizontal ion-padding-bottom">
-        <ion-col size="12">
-          <ion-card>
-            <ion-card-header>
-              <ion-card-title>Carro en ruta</ion-card-title>
-              <ion-card-subtitle>Seguimiento en tiempo real</ion-card-subtitle>
-            </ion-card-header>
-            <ion-card-content>
-              <ion-row class="ion-align-items-center">
-                <ion-col>
-                  <ion-text color="medium">Vehículos moviéndose: {{ movingVehiclesCount() }}</ion-text>
-                </ion-col>
-                <ion-col size="auto">
-                  <ion-button color="primary" (click)="go('/mapa')">
-                    <ion-icon slot="start" name="map"></ion-icon>
-                    Ver en mapa
-                  </ion-button>
-                </ion-col>
-              </ion-row>
-            </ion-card-content>
-          </ion-card>
-          <ion-card>
-            <ion-card-header>
-              <ion-card-title>Mi zona</ion-card-title>
-              <ion-card-subtitle>Rutas y horarios</ion-card-subtitle>
-            </ion-card-header>
-            <ion-card-content>
-              <ion-text color="medium">Consulta el mapa para ver tu recorrido asignado.</ion-text>
-              <ion-button fill="clear" size="small" (click)="go('/mapa')" class="ion-margin-top">Abrir mapa</ion-button>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-      </ion-row>
-    }
-
-    @if (role() === 'admin') {
-      <ion-row class="ion-padding-horizontal ion-padding-bottom">
-        <ion-col size="12">
-          <ion-card>
-            <ion-card-header>
-              <ion-card-title>Hola, Admin</ion-card-title>
-              <ion-card-subtitle>Acceso al panel</ion-card-subtitle>
-            </ion-card-header>
-            <ion-card-content>
-              <ion-button expand="block" color="primary" (click)="go('/admin')">
-                <ion-icon slot="start" name="settings"></ion-icon>
-                Panel de administración
-              </ion-button>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-      </ion-row>
+    <ion-row class="ion-padding-horizontal ion-padding-bottom">
+      <ion-col size="12">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>Hola, Conductor</ion-card-title>
+            <ion-card-subtitle>Accesos rápidos</ion-card-subtitle>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-button
+              expand="block"
+              color="success"
+              (click)="go('/conductor/rutas')"
+            >
+              <ion-icon slot="start" name="map-outline"></ion-icon>
+              Rutas asignadas
+            </ion-button>
+            <ion-button
+              expand="block"
+              color="tertiary"
+              (click)="go('/conductor/recorrido')"
+              class="ion-margin-top"
+            >
+              <ion-icon slot="start" name="navigate-outline"></ion-icon>
+              Iniciar/continuar recorrido
+            </ion-button>
+            <ion-button
+              expand="block"
+              color="primary"
+              (click)="go('/mapa')"
+              class="ion-margin-top"
+            >
+              <ion-icon slot="start" name="map"></ion-icon>
+              Ver mapa
+            </ion-button>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+    } @if (role() === 'cliente') {
+    <ion-row class="ion-padding-horizontal ion-padding-bottom">
+      <ion-col size="12">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>Carro en ruta</ion-card-title>
+            <ion-card-subtitle>Seguimiento en tiempo real</ion-card-subtitle>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-row class="ion-align-items-center">
+              <ion-col>
+                <ion-text color="medium"
+                  >Vehículos moviéndose: {{ movingVehiclesCount() }}</ion-text
+                >
+              </ion-col>
+              <ion-col size="auto">
+                <ion-button color="primary" (click)="go('/mapa')">
+                  <ion-icon slot="start" name="map"></ion-icon>
+                  Ver en mapa
+                </ion-button>
+              </ion-col>
+            </ion-row>
+          </ion-card-content>
+        </ion-card>
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>Mi zona</ion-card-title>
+            <ion-card-subtitle>Rutas y horarios</ion-card-subtitle>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-text color="medium"
+              >Consulta el mapa para ver tu recorrido asignado.</ion-text
+            >
+            <ion-button
+              fill="clear"
+              size="small"
+              (click)="go('/mapa')"
+              class="ion-margin-top"
+              >Abrir mapa</ion-button
+            >
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+    } @if (role() === 'admin') {
+    <ion-row class="ion-padding-horizontal ion-padding-bottom">
+      <ion-col size="12">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>Hola, Admin</ion-card-title>
+            <ion-card-subtitle>Acceso al panel</ion-card-subtitle>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-button expand="block" color="primary" (click)="go('/admin')">
+              <ion-icon slot="start" name="settings"></ion-icon>
+              Panel de administración
+            </ion-button>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
     }
 
     <!-- Botón para abrir la página del mapa de Buenaventura -->
@@ -136,16 +158,32 @@
           <ion-icon slot="start" name="map-outline"></ion-icon>
           Ver Mapa de Buenaventura
         </ion-button>
-        <ion-button expand="block" color="tertiary" (click)="importRutasToSupabase()" [disabled]="isImporting()">
+        @if (role() === 'admin') {
+        <ion-button
+          expand="block"
+          color="tertiary"
+          (click)="importRutasToSupabase()"
+          [disabled]="isImporting()"
+        >
           <ion-icon slot="start" name="cloud-upload-outline"></ion-icon>
-          @if (!isImporting()) { Importar rutas a Supabase } @else { Importando... }
+          @if (!isImporting()) { Importar rutas a Supabase } @else {
+          Importando... }
         </ion-button>
-        <ion-button expand="block" color="secondary" (click)="importCallesToSupabase()" [disabled]="isImporting()" class="ion-margin-top">
+        <ion-button
+          expand="block"
+          color="secondary"
+          (click)="importCallesToSupabase()"
+          [disabled]="isImporting()"
+          class="ion-margin-top"
+        >
           <ion-icon slot="start" name="cloud-upload"></ion-icon>
-          @if (!isImporting()) { Importar calles a Supabase } @else { Importando... }
+          @if (!isImporting()) { Importar calles a Supabase } @else {
+          Importando... }
         </ion-button>
-        @if (importMessage()) {
-          <ion-text color="medium" class="ion-margin-top">{{ importMessage() }}</ion-text>
+        } @if (importMessage()) {
+        <ion-text color="medium" class="ion-margin-top"
+          >{{ importMessage() }}</ion-text
+        >
         }
       </ion-col>
     </ion-row>
@@ -157,7 +195,10 @@
           <ion-card-content class="ion-text-center">
             <ion-icon name="map" size="large" color="medium"></ion-icon>
             <ion-text>Mapa de Buenaventura</ion-text>
-            <ion-text>📍 Coordenadas: {{ mapCenter().lat }}, {{ mapCenter().lng }}</ion-text>
+            <ion-text
+              >📍 Coordenadas: {{ mapCenter().lat }}, {{ mapCenter().lng
+              }}</ion-text
+            >
           </ion-card-content>
         </ion-card>
       </ion-col>
@@ -166,84 +207,103 @@
     <!-- Lista de vehículos -->
     <ion-row class="vehicles-section">
       <ion-col size="12">
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>🚛 Vehículos en Ruta</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          @if (isLoading()) {
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>🚛 Vehículos en Ruta</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            @if (isLoading()) {
             <ion-row class="loading-container" justify-content-center>
               <ion-col size="12" class="ion-text-center">
                 <ion-spinner name="crescent"></ion-spinner>
-                <ion-text class="ion-margin-start">Cargando vehículos...</ion-text>
+                <ion-text class="ion-margin-start"
+                  >Cargando vehículos...</ion-text
+                >
               </ion-col>
             </ion-row>
-          } @else {
+            } @else {
             <ion-list class="vehicles-list">
-              @for (vehiculo of getVehiculosDeRuta(selectedRuta()?.id || ''); track vehiculo.id) {
-                <ion-item class="vehicle-item">
-                  <ion-avatar slot="start">
-                    <ion-icon name="car" color="primary"></ion-icon>
-                  </ion-avatar>
-                  
-                  <ion-label>
-                    <ion-text>{{ vehiculo.placa }}</ion-text>
-                    <ion-text color="medium">{{ vehiculo.modelo }} - {{ vehiculo.marca || 'Sin marca' }}</ion-text>
-                  </ion-label>
+              @for (vehiculo of getVehiculosDeRuta(selectedRuta()?.id || '');
+              track vehiculo.id) {
+              <ion-item class="vehicle-item">
+                <ion-avatar slot="start">
+                  <ion-icon name="car" color="primary"></ion-icon>
+                </ion-avatar>
 
-                  <ion-col slot="end" class="vehicle-status" size="auto">
-                    @if (getUbicacionVehiculo(vehiculo.id)) {
-                      <ion-row class="location-info">
-                        <ion-col class="timestamp">📍 {{ formatTime(getUbicacionVehiculo(vehiculo.id)!.timestamp) }}</ion-col>
-                        <ion-col class="speed">🏃 {{ getUbicacionVehiculo(vehiculo.id)!.velocidad }} km/h</ion-col>
-                        <ion-badge 
-                          [color]="getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'success' : 'warning'">
-                          {{ getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'En movimiento' : 'Detenido' }}
-                        </ion-badge>
-                      </ion-row>
-                    } @else {
-                      <ion-badge color="danger">Sin ubicación</ion-badge>
-                    }
-                  </ion-col>
-                </ion-item>
+                <ion-label>
+                  <ion-text>{{ vehiculo.placa }}</ion-text>
+                  <ion-text color="medium"
+                    >{{ vehiculo.modelo }} - {{ vehiculo.marca || 'Sin marca'
+                    }}</ion-text
+                  >
+                </ion-label>
+
+                <ion-col slot="end" class="vehicle-status" size="auto">
+                  @if (getUbicacionVehiculo(vehiculo.id)) {
+                  <ion-row class="location-info">
+                    <ion-col class="timestamp"
+                      >📍 {{
+                      formatTime(getUbicacionVehiculo(vehiculo.id)!.timestamp)
+                      }}</ion-col
+                    >
+                    <ion-col class="speed"
+                      >🏃 {{ getUbicacionVehiculo(vehiculo.id)!.velocidad }}
+                      km/h</ion-col
+                    >
+                    <ion-badge
+                      [color]="getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'success' : 'warning'"
+                    >
+                      {{ getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'En
+                      movimiento' : 'Detenido' }}
+                    </ion-badge>
+                  </ion-row>
+                  } @else {
+                  <ion-badge color="danger">Sin ubicación</ion-badge>
+                  }
+                </ion-col>
+              </ion-item>
               } @empty {
-                <ion-row class="empty-state" justify-content-center>
-                  <ion-col size="12" class="ion-text-center">
-                    <ion-icon name="car-outline" size="large" color="medium"></ion-icon>
-                    <ion-text>No hay vehículos activos en esta ruta</ion-text>
-                  </ion-col>
-                </ion-row>
+              <ion-row class="empty-state" justify-content-center>
+                <ion-col size="12" class="ion-text-center">
+                  <ion-icon
+                    name="car-outline"
+                    size="large"
+                    color="medium"
+                  ></ion-icon>
+                  <ion-text>No hay vehículos activos en esta ruta</ion-text>
+                </ion-col>
+              </ion-row>
               }
             </ion-list>
-          }
-        </ion-card-content>
-      </ion-card>
+            }
+          </ion-card-content>
+        </ion-card>
       </ion-col>
     </ion-row>
 
     <!-- Selector de rutas -->
     <ion-row class="routes-section">
       <ion-col size="12">
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>🗺️ Rutas Disponibles</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-row class="routes-list">
-            @for (ruta of rutas(); track ruta.id) {
-              <ion-chip 
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>🗺️ Rutas Disponibles</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-row class="routes-list">
+              @for (ruta of rutas(); track ruta.id) {
+              <ion-chip
                 [color]="selectedRuta()?.id === ruta.id ? 'primary' : 'medium'"
                 (click)="selectRuta(ruta)"
-                class="route-chip">
+                class="route-chip"
+              >
                 <ion-icon name="location" slot="start"></ion-icon>
                 <ion-label>{{ ruta.nombre }}</ion-label>
               </ion-chip>
-            }
-          </ion-row>
-        </ion-card-content>
-      </ion-card>
+              }
+            </ion-row>
+          </ion-card-content>
+        </ion-card>
       </ion-col>
     </ion-row>
   </ion-grid>
 </ion-content>
-
