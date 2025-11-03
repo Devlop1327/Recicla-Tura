@@ -1,6 +1,6 @@
 import { Component, signal, ChangeDetectorRef, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 import { Router, RouterLink } from '@angular/router';
 import { SupabaseService } from '../../services/supabase.service';
@@ -11,7 +11,7 @@ import { ToastController, LoadingController } from '@ionic/angular';
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule, RouterLink]
+  imports: [IonicModule, CommonModule, FormsModule, ReactiveFormsModule, RouterLink]
 })
 export class LoginPage {
   email = signal('');
@@ -19,16 +19,22 @@ export class LoginPage {
   isLoading = signal(false);
   isSignUp = signal(false);
   role = signal<'admin' | 'conductor' | 'cliente'>('cliente');
+  form!: FormGroup;
 
   constructor(
     private supabaseService: SupabaseService,
     private router: Router,
     private toastController: ToastController,
     private loadingController: LoadingController,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private fb: FormBuilder
   ) {}
 
   async ngOnInit(): Promise<void> {
+    this.form = this.fb.group({
+      email: ['', [Validators.required, Validators.email]],
+      password: ['', [Validators.required, Validators.minLength(6)]],
+    });
     // Si ya hay un usuario autenticado, redirigir a la app principal
     try {
       this.isLoading.set(true);
@@ -45,7 +51,8 @@ export class LoginPage {
   }
 
   async login() {
-    if (!this.email() || !this.password()) {
+    const { email, password } = this.form.value;
+    if (!email || !password) {
       this.showToast('Por favor completa todos los campos', 'warning');
       return;
     }
@@ -53,11 +60,8 @@ export class LoginPage {
     this.isLoading.set(true);
     
     try {
-      console.log('Intentando login con:', this.email());
-      const { data, error } = await this.supabaseService.signInWithEmail(
-        this.email(),
-        this.password()
-      );
+      console.log('Intentando login con:', email);
+      const { data, error } = await this.supabaseService.signInWithEmail(email, password);
 
       console.log('Resultado del login:', { data, error });
 
@@ -81,7 +85,8 @@ export class LoginPage {
   }
 
   async signUp() {
-    if (!this.email() || !this.password()) {
+    const { email, password } = this.form.value;
+    if (!email || !password) {
       this.showToast('Por favor completa todos los campos', 'warning');
       return;
     }
@@ -89,10 +94,7 @@ export class LoginPage {
     this.isLoading.set(true);
     
     try {
-      const { data, error } = await this.supabaseService.signUpWithEmail(
-        this.email(),
-        this.password()
-      );
+      const { data, error } = await this.supabaseService.signUpWithEmail(email, password);
 
       if (error) {
         this.showToast('Error al registrarse: ' + error.message, 'danger');

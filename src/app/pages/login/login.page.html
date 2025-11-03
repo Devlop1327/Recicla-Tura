@@ -10,52 +10,52 @@
     <ion-row class="form-section" justify-content-center>
       <ion-card>
         <ion-card-content>
-          <ion-list>
-            <ion-item>
-              <ion-label position="stacked">Email</ion-label>
-              <ion-input
-                type="email"
-                [value]="email()"
-                (ionInput)="email.set($event.detail.value!)"
-                placeholder="tu@email.com"
-                required>
-              </ion-input>
-            </ion-item>
-
-            @if (isSignUp()) {
+          <form [formGroup]="form" (ngSubmit)="isSignUp() ? signUp() : login()">
+            <ion-list>
               <ion-item>
-                <ion-label position="stacked">Rol</ion-label>
-                <ion-select interface="popover" placeholder="Selecciona tu rol"
-                            [value]="role()" (ionChange)="role.set($event.detail.value)">
-                  <ion-select-option value="cliente">Cliente (solo visualización)</ion-select-option>
-                  <ion-select-option value="conductor">Conductor (inicia recorridos)</ion-select-option>
-                  <ion-select-option value="admin">Admin (CRUD rutas y calles)</ion-select-option>
-                </ion-select>
+                <ion-label position="stacked">Email</ion-label>
+                <ion-input
+                  type="email"
+                  formControlName="email"
+                  placeholder="tu@email.com"
+                  required>
+                </ion-input>
               </ion-item>
-            }
 
-            <ion-item>
-              <ion-label position="stacked">Contraseña</ion-label>
-              <ion-input
-                type="password"
-                [value]="password()"
-                (ionInput)="password.set($event.detail.value!)"
-                placeholder="••••••••"
-                required>
-              </ion-input>
-            </ion-item>
+              @if (isSignUp()) {
+                <ion-item>
+                  <ion-label position="stacked">Rol</ion-label>
+                  <ion-select interface="popover" placeholder="Selecciona tu rol"
+                              [value]="role()" (ionChange)="role.set($event.detail.value)">
+                    <ion-select-option value="cliente">Cliente (solo visualización)</ion-select-option>
+                    <ion-select-option value="conductor">Conductor (inicia recorridos)</ion-select-option>
+                    <ion-select-option value="admin">Admin (CRUD rutas y calles)</ion-select-option>
+                  </ion-select>
+                </ion-item>
+              }
 
-            <ion-button
-              expand="block"
-              [disabled]="isLoading()"
-              class="login-button"
-              (click)="isSignUp() ? signUp() : login()">
-              @if (isLoading()) {
-                <ion-spinner name="crescent"></ion-spinner>
-                <ion-text style="margin-left: 8px">Cargando...</ion-text>
-              } @else { {{ isSignUp() ? 'Registrarse' : 'Iniciar Sesión' }} }
-            </ion-button>
-          </ion-list>
+              <ion-item>
+                <ion-label position="stacked">Contraseña</ion-label>
+                <ion-input
+                  type="password"
+                  formControlName="password"
+                  placeholder="••••••••"
+                  required>
+                </ion-input>
+              </ion-item>
+
+              <ion-button
+                type="submit"
+                expand="block"
+                [disabled]="isLoading() || form.invalid"
+                class="login-button">
+                @if (isLoading()) {
+                  <ion-spinner name="crescent"></ion-spinner>
+                  <ion-text style="margin-left: 8px">Cargando...</ion-text>
+                } @else { {{ isSignUp() ? 'Registrarse' : 'Iniciar Sesión' }} }
+              </ion-button>
+            </ion-list>
+          </form>
 
           <ion-row class="toggle-section" justify-content-center>
             <ion-col size="12" class="ion-text-center">

@@ -9,6 +9,7 @@ export class RecorridosService {
   private activeRecorridoId = signal<string | null>(null);
   private vehiculoId = signal<string | null>(null);
   private currentRouteName = signal<string | null>(null);
+  private promoteTimer: any = null;
 
   constructor(private supabase: SupabaseService, private mapData: MapDataService) {}
 
@@ -29,26 +30,34 @@ export class RecorridosService {
       this.activeRecorridoId.set(rec.id);
       this.active.set(true);
     } else {
-      // Fallback local para habilitar UI y guardar en Supabase aunque la API externa no soporte recorridos
       const localId = `local-${routeId}-${Date.now()}`;
       this.activeRecorridoId.set(localId);
       this.active.set(true);
+      this.startPromotionPolling();
     }
   }
 
   async stopRecorrido() {
-    const recId = this.activeRecorridoId();
-    if (recId) {
-      // Intentar finalizar en API externa solo si no es un id local
-      if (!recId.startsWith('local-')) {
-        await this.mapData.finalizarRecorrido(recId);
-      }
+    await this.refreshActiveFromApi();
+    let targetId: string | null = this.activeRecorridoId();
+    if (targetId && targetId.startsWith('local-')) {
+      const resolved = await this.resolveRealRecorridoId();
+      targetId = resolved || null;
     }
+    if (!targetId) {
+      return false;
+    }
+    const ok = await this.mapData.finalizarRecorrido(targetId);
+    if (!ok) {
+      return false;
+    }
+    this.stopPromotionPolling();
     this.active.set(false);
     this.currentRouteId.set(null);
     this.activeRecorridoId.set(null);
     this.vehiculoId.set(null);
     this.currentRouteName.set(null);
+    return true;
   }
 
   getActiveRecorridoId() {
@@ -75,7 +84,10 @@ export class RecorridosService {
   async refreshActiveFromApi() {
     try {
       const list = await this.mapData.loadRecorridos();
-      const running = (list || []).find((r: any) => (r.estado || '').toLowerCase().includes('progreso'));
+      const running = (list || []).find((r: any) => {
+        const t = (r.estado || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+        return t.includes('progreso') || t.includes('curso');
+      });
       if (running) {
         this.activeRecorridoId.set(running.id);
         this.currentRouteId.set(running.ruta_id ?? this.currentRouteId());
@@ -89,5 +101,48 @@ export class RecorridosService {
       return this.active();
     }
   }
-}
 
+  private async resolveRealRecorridoId(): Promise<string | null> {
+    try {
+      const rutaId = this.currentRouteId();
+      const list = await this.mapData.loadRecorridos();
+      const running = (list || []).find((r: any) => {
+        const estado = (r.estado || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+        const okEstado = estado.includes('progreso') || estado.includes('curso');
+        const okRuta = rutaId ? r.ruta_id === rutaId : true;
+        return okEstado && okRuta;
+      });
+      if (running?.id) return running.id;
+      const anyRunning = (list || []).find((r: any) => {
+        const estado = (r.estado || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+        return estado.includes('progreso') || estado.includes('curso');
+      });
+      return anyRunning?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private startPromotionPolling() {
+    if (this.promoteTimer) return;
+    this.promoteTimer = setInterval(async () => {
+      const id = this.activeRecorridoId();
+      if (!id || !id.startsWith('local-')) {
+        this.stopPromotionPolling();
+        return;
+      }
+      const ok = await this.refreshActiveFromApi();
+      const newId = this.activeRecorridoId();
+      if (ok && newId && !newId.startsWith('local-')) {
+        this.stopPromotionPolling();
+      }
+    }, 3000);
+  }
+
+  private stopPromotionPolling() {
+    if (this.promoteTimer) {
+      clearInterval(this.promoteTimer);
+      this.promoteTimer = null;
+    }
+  }
+}

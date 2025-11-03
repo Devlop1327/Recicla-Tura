@@ -8,6 +8,11 @@ import { environment } from '../../environments/environment';
 export class SupabaseService {
   public supabase: SupabaseClient;
   public currentRole = signal<'admin' | 'conductor' | 'cliente' | null>(null);
+  // Evitar múltiples llamadas concurrentes a auth.getUser() que generan NavigatorLockAcquireTimeoutError
+  private getUserInFlight: Promise<User | null> | null = null;
+  private cachedUser: User | null = null;
+  private cachedUserAt = 0; // epoch ms
+  private readonly userTtlMs = 5000; // cache 5s para reducir lock churn
 
   constructor() {
     this.supabase = createClient(
@@ -45,14 +50,34 @@ export class SupabaseService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    try {
-      const { data: { user }, error } = await this.supabase.auth.getUser();
-      console.log('getCurrentUser - Usuario:', user, 'Error:', error);
-      return user;
-    } catch (error) {
-      console.error('Error en getCurrentUser:', error);
-      return null;
+    // Cache de corta duración
+    const now = Date.now();
+    if (this.cachedUser && (now - this.cachedUserAt) < this.userTtlMs) {
+      return this.cachedUser;
     }
+    // Deduplicar llamadas paralelas
+    if (this.getUserInFlight) {
+      return this.getUserInFlight;
+    }
+    this.getUserInFlight = (async () => {
+      try {
+        const { data: { user }, error } = await this.supabase.auth.getUser();
+        if (error) {
+          console.warn('getCurrentUser error:', error);
+        }
+        this.cachedUser = user ?? null;
+        this.cachedUserAt = Date.now();
+        return this.cachedUser;
+      } catch (e) {
+        console.error('Error en getCurrentUser:', e);
+        this.cachedUser = null;
+        return null;
+      } finally {
+        // Liberar el in-flight después de resolver
+        this.getUserInFlight = null;
+      }
+    })();
+    return this.getUserInFlight;
   }
 
   // Recuperar contraseña: envía email de restablecimiento

@@ -128,6 +128,13 @@ export class MapDataService {
       );
       const created: CalleApiItem | null = resp?.data ?? null;
       if (created) {
+        // Dual write a Supabase: guardar también la calle
+        try {
+          const shapeStr = typeof created.shape === 'string' ? created.shape : (payload.shape ? JSON.stringify(payload.shape) : '');
+          await this.supabase.createCalle({ nombre: created.nombre ?? payload.nombre, shape: shapeStr });
+        } catch (e) {
+          console.warn('[MapDataService] Dual write Supabase calle falló:', e);
+        }
         const curr = this.calles();
         this.calles.set([created, ...curr]);
         return created;
@@ -221,7 +228,6 @@ export class MapDataService {
         const msg = e2?.message ?? 'Error al cargar rutas';
         console.error('[MapDataService] /rutas error final:', e2);
         this.error.set(msg);
-        // último intento: Supabase view
         const supa = await this.loadRutasFromSupabaseGeojson();
         if (supa.length > 0) {
           this.rutas.set(supa);
@@ -290,6 +296,24 @@ export class MapDataService {
         created = listado.find(r => (r.nombre || r.nombre_ruta) === payload.nombre) || null;
         console.log('[MapDataService] Ruta resuelta tras recarga:', created);
       }
+      // Dual write a Supabase (RPC) si tenemos datos suficientes
+      try {
+        const gid = (created?.id ?? '').toString();
+        const gname = created?.nombre || created?.nombre_ruta || payload.nombre;
+        const gdesc = created?.descripcion || created?.descripcion_ruta || payload.descripcion || '';
+        let gshape: any = null;
+        if (created?.shape) {
+          try { gshape = typeof created.shape === 'string' ? JSON.parse(created.shape) : created.shape; } catch { gshape = null; }
+        }
+        if (!gshape && payload.shape) {
+          gshape = payload.shape;
+        }
+        if (gid && gname && gshape) {
+          await this.persistRutaToSupabase(gid, gname, gdesc, gshape);
+        }
+      } catch (rpcErr) {
+        console.warn('[MapDataService] RPC upsert_ruta_geojson falló tras crear ruta:', rpcErr);
+      }
       return created;
     } catch (e: any) {
       console.error('[MapDataService] Error creando ruta:', e?.error ?? e);
@@ -349,10 +373,42 @@ export class MapDataService {
       const list = this.rutas();
       const next = (list || []).map(r => (r.id === id ? { ...r, ...updated } as any : r));
       this.rutas.set(next);
+      // Dual write a Supabase (RPC)
+      try {
+        const gname = updated?.nombre || updated?.nombre_ruta || updates.nombre || '';
+        const gdesc = updated?.descripcion || updated?.descripcion_ruta || updates.descripcion || '';
+        let gshape: any = null;
+        const candShape = updated?.shape ?? updates.shape;
+        if (candShape) {
+          try { gshape = typeof candShape === 'string' ? JSON.parse(candShape) : candShape; } catch { gshape = null; }
+        }
+        if (id && gname && gshape) {
+          await this.persistRutaToSupabase(id, gname, gdesc, gshape);
+        }
+      } catch (rpcErr) {
+        console.warn('[MapDataService] RPC upsert_ruta_geojson falló tras actualizar ruta:', rpcErr);
+      }
       return updated;
     } catch (e) {
       console.error('[MapDataService] updateRuta error:', e);
       return null;
+    }
+  }
+
+  private async persistRutaToSupabase(id: string, nombre: string, descripcion: string, shape: any) {
+    try {
+      const payload = {
+        p_id: id,
+        p_nombre: nombre,
+        p_descripcion: descripcion,
+        p_color: '#FF9800',
+        p_activa: true,
+        p_geojson: typeof shape === 'string' ? JSON.parse(shape) : shape
+      };
+      const { error } = await this.supabase.supabase.rpc('upsert_ruta_geojson', payload as any);
+      if (error) throw error;
+    } catch (e) {
+      console.warn('[MapDataService] persistRutaToSupabase error:', e);
     }
   }
 
@@ -409,20 +465,39 @@ export class MapDataService {
       await firstValueFrom(
         this.http.post(
           `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
-          { perfil_id: this.profileId }
+          { perfil_id: this.profileId },
+          { params: { perfil_id: this.profileId } as any }
         )
       );
       return true;
     } catch (e: any) {
-      console.warn('[MapDataService] POST /recorridos/{id}/finalizar falló:', e?.message || e);
-      return false;
+      console.warn('[MapDataService] finalizarRecorrido con perfil_id falló, reintentando sin body...', e?.message || e);
+      try {
+        await firstValueFrom(
+          this.http.post(
+            `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
+            {},
+            { params: { perfil_id: this.profileId } as any }
+          )
+        );
+        return true;
+      } catch (e2: any) {
+        console.warn('[MapDataService] POST /recorridos/{id}/finalizar falló definitivamente:', e2?.message || e2);
+        return false;
+      }
     }
   }
 
   async listarPosiciones(recorridoId: string): Promise<PosicionApiItem[]> {
+    // Evitar errores cuando usamos un recorrido local (fallback de UI)
+    if (recorridoId && recorridoId.startsWith('local-')) {
+      return [];
+    }
     try {
       const data = await firstValueFrom(
-        this.http.get<{ data: any[] }>(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`)
+        this.http.get<{ data: any[] }>(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
+          params: { perfil_id: this.profileId } as any
+        })
       );
       const arr = Array.isArray(data?.data) ? data!.data : [];
       // Mapear lon->lng si la API usa 'lon'

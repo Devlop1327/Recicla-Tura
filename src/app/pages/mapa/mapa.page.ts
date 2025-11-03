@@ -23,6 +23,10 @@ export class MapaPage implements AfterViewInit {
   private recorridoPolyline: L.Polyline | null = null;
   private recorridoMarker: L.Marker | null = null;
   private posicionesTimer: any = null;
+  private promoteTimer: any = null;
+  private routeCoords: L.LatLng[] = [];
+  private simTimer: any = null;
+  private simIndex = 0;
   showCalles = signal(true);
   showRutas = signal(true);
   rutas = signal<RutaApiItem[]>([]);
@@ -47,14 +51,16 @@ export class MapaPage implements AfterViewInit {
     this.initMap();
     // Give the DOM a tick to layout, then fix Leaflet sizing
     setTimeout(() => this.map?.invalidateSize(), 0);
+    // Asegurar sizing en algunos dispositivos
+    setTimeout(() => this.map?.invalidateSize(), 250);
+    setTimeout(() => this.map?.invalidateSize(), 750);
     // Recompute size when viewport changes
     window.addEventListener('resize', this.onResize, { passive: true });
     // Load data layers
     this.loadCallesLayer();
     this.loadRutasLayer();
-    this.loadUserRole();
-    // Tras cargar el rol, iniciar observación para clientes
-    setTimeout(() => this.watchActiveRecorridosForClients(), 0);
+    // Cargar rol y luego iniciar observación para clientes
+    this.loadUserRole().then(() => this.watchActiveRecorridosForClients());
   }
 
   onSelectRuta(ev: CustomEvent) {
@@ -76,11 +82,25 @@ export class MapaPage implements AfterViewInit {
     if (!this.map) return;
     this.clearSelectedRuta();
     const r = (this.rutas() || []).find(x => x.id === id);
-    if (!r || !r.shape) return;
+    if (!r) return;
     try {
-      const geom = JSON.parse(r.shape) as GeoJSON.LineString;
-      if (geom.type !== 'LineString') return;
-      const layer = L.geoJSON({ type: 'Feature', geometry: geom } as any, {
+      const shapeRaw: any = (r as any).shape ?? (r as any).shape_ruta ?? null;
+      if (!shapeRaw) return;
+      let geo: any = null;
+      try { geo = typeof shapeRaw === 'string' ? JSON.parse(shapeRaw) : shapeRaw; } catch { geo = null; }
+      if (!geo) return;
+      let line: GeoJSON.LineString | null = null;
+      if (geo.type === 'LineString') {
+        line = geo as GeoJSON.LineString;
+      } else if (geo.type === 'Feature' && geo.geometry?.type === 'LineString') {
+        line = geo.geometry as GeoJSON.LineString;
+      } else if (geo.type === 'FeatureCollection') {
+        const first = (geo.features || []).find((f: any) => f?.geometry?.type === 'LineString');
+        line = first?.geometry ?? null;
+      }
+      if (!line || !Array.isArray(line.coordinates)) return;
+      this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
+      const layer = L.geoJSON({ type: 'Feature', geometry: line } as any, {
         style: () => ({ color: '#e91e63', weight: 5, opacity: 1 })
       }).addTo(this.map as L.Map);
       this.selectedRutaLayer = layer;
@@ -148,7 +168,11 @@ export class MapaPage implements AfterViewInit {
 
   // Ionic lifecycle hook, called when the page has fully entered and is now the active page
   ionViewDidEnter() {
+    if (!this.map) {
+      this.initMap();
+    }
     this.map?.invalidateSize();
+    setTimeout(() => this.map?.invalidateSize(), 200);
   }
 
   private onResize = () => {
@@ -168,6 +192,10 @@ export class MapaPage implements AfterViewInit {
       this.map.off('click', this.onMapClick as any);
     }
     this.clearDraft();
+    if (this.simTimer) {
+      clearInterval(this.simTimer);
+      this.simTimer = null;
+    }
     if (this.map) {
       this.map.remove();
       this.map = null;
@@ -511,6 +539,19 @@ export class MapaPage implements AfterViewInit {
     if (rec) {
       this.activeRecorrido.set(rec);
       this.beginPollingPosiciones(rec.id);
+      this.startSimulation();
+    } else {
+      const local: RecorridoApiItem = {
+        id: `local-${rutaId}-${Date.now()}`,
+        ruta_id: rutaId,
+        perfil_id: 'local',
+        estado: 'en_progreso',
+        iniciado_en: new Date().toISOString()
+      } as any;
+      this.activeRecorrido.set(local);
+      this.beginPollingPosiciones(local.id);
+      this.beginPromoteLocalRecorrido(local);
+      this.startSimulation();
     }
   }
 
@@ -518,11 +559,56 @@ export class MapaPage implements AfterViewInit {
     if (this.userRole() !== 'conductor') return;
     const rec = this.activeRecorrido();
     if (!rec) return;
-    const ok = await this.mapData.finalizarRecorrido(rec.id);
-    if (ok) {
-      this.activeRecorrido.set(null);
-      if (this.posicionesTimer) clearInterval(this.posicionesTimer);
-    }
+    try {
+      const list = await this.mapData.loadRecorridos();
+      const isRunning = (s: string) => {
+        const t = (s || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+        return t.includes('progreso') || t.includes('curso');
+      };
+      const runningByRuta = (list || []).find(r => isRunning(r.estado || '') && (!!rec.ruta_id ? r.ruta_id === rec.ruta_id : true));
+      const anyRunning = runningByRuta || (list || []).find(r => isRunning(r.estado || ''));
+      let targetId: string | null = null;
+      if (rec.id && !rec.id.startsWith('local-')) {
+        targetId = rec.id;
+      } else if (anyRunning?.id) {
+        targetId = anyRunning.id;
+      }
+      if (!targetId) return;
+      const ok = await this.mapData.finalizarRecorrido(targetId);
+      if (ok) {
+        // Confirm by reloading list
+        await this.mapData.loadRecorridos();
+        this.activeRecorrido.set(null);
+        if (this.posicionesTimer) clearInterval(this.posicionesTimer);
+        if (this.promoteTimer) clearInterval(this.promoteTimer);
+        if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+      }
+    } catch {}
+  }
+
+  private beginPromoteLocalRecorrido(local: RecorridoApiItem) {
+    if (this.promoteTimer) clearInterval(this.promoteTimer);
+    const rutaId = local.ruta_id;
+    const tryPromote = async () => {
+      const list = await this.mapData.loadRecorridos();
+      const real = (list || []).find(r => r.estado === 'en_progreso' && r.ruta_id === rutaId);
+      if (real) {
+        this.activeRecorrido.set(real);
+        if (this.promoteTimer) clearInterval(this.promoteTimer);
+        // Reinciar polling con id real
+        this.beginPollingPosiciones(real.id);
+      }
+    };
+    // Intentos por ~30s
+    let attempts = 0;
+    this.promoteTimer = setInterval(async () => {
+      attempts++;
+      if (attempts > 15) {
+        clearInterval(this.promoteTimer);
+        return;
+      }
+      await tryPromote();
+    }, 2000);
   }
 
   private beginPollingPosiciones(recorridoId: string) {
@@ -533,6 +619,35 @@ export class MapaPage implements AfterViewInit {
     };
     poll();
     this.posicionesTimer = setInterval(poll, 5000);
+  }
+
+  private startSimulation() {
+    if (this.simTimer) return;
+    const rutaId = this.selectedRutaId();
+    const coords = this.routeCoords;
+    if (!rutaId || !coords || coords.length < 2) return;
+    this.simIndex = 0;
+    const stepMs = 1000;
+    this.simTimer = setInterval(async () => {
+      const rec = this.activeRecorrido();
+      if (!rec) { clearInterval(this.simTimer); this.simTimer = null; return; }
+      const pt = coords[this.simIndex];
+      if (!pt) { clearInterval(this.simTimer); this.simTimer = null; return; }
+      const recId = rec.id;
+      const lat = pt.lat;
+      const lng = pt.lng;
+      if (recId && !recId.startsWith('local-')) {
+        await this.mapData.registrarPosicion(recId, lat, lng, 5);
+      }
+      try {
+        await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId, lat, lng, velocidad: 5 });
+      } catch {}
+      this.simIndex++;
+      if (this.simIndex >= coords.length) {
+        clearInterval(this.simTimer);
+        this.simTimer = null;
+      }
+    }, stepMs);
   }
 
   private drawRecorrido(posiciones: PosicionApiItem[]) {
