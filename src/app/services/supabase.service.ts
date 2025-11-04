@@ -104,6 +104,26 @@ export class SupabaseService {
     return { data, error };
   }
 
+  // Listar perfiles con búsqueda y paginación
+  async listProfiles(params: { q?: string; limit?: number; offset?: number; orderBy?: string; ascending?: boolean } = {}) {
+    const { q, limit = 20, offset = 0, orderBy = 'created_at', ascending = false } = params;
+    let query = this.supabase
+      .from('profiles')
+      .select('*', { count: 'exact' })
+      .order(orderBy as any, { ascending });
+
+    if (q && q.trim()) {
+      // Buscar por email, full_name o phone si existen en el esquema
+      const term = `%${q.trim()}%`;
+      query = query.or(
+        ['email.ilike.' + term, 'full_name.ilike.' + term, 'phone.ilike.' + term].join(',')
+      );
+    }
+
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
+    return { data: data || [], error, count: count ?? 0 } as any;
+  }
+
   // Actualizar perfil
   async updateProfile(userId: string, updates: any) {
     const { data, error } = await this.supabase
@@ -113,6 +133,53 @@ export class SupabaseService {
       .select('*');
     
     return { data, error };
+  }
+
+  // Actualizar solo el rol del perfil
+  async updateProfileRole(userId: string, role: 'admin' | 'conductor' | 'cliente') {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .update({ role })
+      .eq('id', userId)
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
+  // Upsert genérico de perfil (por id)
+  async upsertProfile(row: any) {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .upsert(row, { onConflict: 'id' })
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
+  // Eliminar perfil (no elimina auth.users)
+  async deleteProfile(userId: string) {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId)
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
+  // Enviar magic link para invitar/crear cuenta sin Edge Function
+  async sendMagicLink(email: string) {
+    try {
+      const { data, error } = await this.supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`
+        }
+      });
+      return { data, error } as any;
+    } catch (error) {
+      return { data: null, error } as any;
+    }
   }
 
   // Asegurar que el perfil exista con el rol indicado usando upsert
@@ -246,6 +313,19 @@ export class SupabaseService {
         callback
       )
       .subscribe();
+  }
+
+  // Realtime helpers (broadcast)
+  getChannel(name: string) {
+    return this.supabase.channel(name);
+  }
+
+  async broadcastPosition(channel: any, payload: { recorrido_id?: string; ruta_id?: string | null; lat: number; lng: number }) {
+    try {
+      await channel.send({ type: 'broadcast', event: 'pos', payload });
+    } catch (e) {
+      // no-op
+    }
   }
 
   // Upload file to bucket (avatars)

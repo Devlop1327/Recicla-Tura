@@ -31,6 +31,11 @@ export class MapaPage implements AfterViewInit {
   private simMarker: L.Marker | null = null;
   private simPath: L.LatLng[] = [];
   private vehicleIcon: L.Icon | null = null;
+  // Throttle for posting positions
+  private lastApiPosAtMs = 0;
+  private lastSupaPosAtMs = 0;
+  private readonly MIN_API_POS_MS = 5000; // >=5s para API externa
+  private readonly MIN_SUPA_POS_MS = 4000; // >=4s para Supabase
   realTracking = signal(true);
   private watchId: number | null = null;
   private snapIndex = 0;
@@ -70,6 +75,29 @@ export class MapaPage implements AfterViewInit {
     this.loadCallesLayer();
     this.loadRutasLayer();
     // Cargar rol y luego iniciar observación para clientes
+    this.loadUserRole().then(() => this.watchActiveRecorridosForClients());
+  }
+
+  private removeClientLayers(recId: string) {
+    // Eliminar marcador y línea de un recorrido específico (cliente)
+    if (this.clientMarkers[recId]) {
+      try { (this.map as L.Map).removeLayer(this.clientMarkers[recId]); } catch {}
+      delete this.clientMarkers[recId];
+    }
+    if (this.clientPolylines[recId]) {
+      try { (this.map as L.Map).removeLayer(this.clientPolylines[recId]); } catch {}
+      delete this.clientPolylines[recId];
+    }
+  }
+
+  ionViewWillEnter() {
+    if (!this.map) {
+      this.initMap();
+    }
+    this.map?.invalidateSize();
+    setTimeout(() => this.map?.invalidateSize(), 150);
+    this.loadCallesLayer();
+    this.loadRutasLayer();
     this.loadUserRole().then(() => this.watchActiveRecorridosForClients());
   }
 
@@ -151,12 +179,15 @@ export class MapaPage implements AfterViewInit {
         const lat = snap?.lat ?? rawLat;
         const lng = snap?.lng ?? rawLng;
         const vel = Number.isFinite(pos.coords.speed || NaN) ? (pos.coords.speed as number) : 5;
-        if (rec.id && !rec.id.startsWith('local-')) {
+        const now = Date.now();
+        if (rec.id && !rec.id.startsWith('local-') && (now - this.lastApiPosAtMs) >= this.MIN_API_POS_MS) {
+          this.lastApiPosAtMs = now;
           await this.mapData.registrarPosicion(rec.id, lat, lng, vel);
         }
-        try {
-          await this.supabaseSvc.createUbicacion({ recorrido_id: rec.id, ruta_id: rutaId, lat, lng, velocidad: vel });
-        } catch {}
+        if ((now - this.lastSupaPosAtMs) >= this.MIN_SUPA_POS_MS) {
+          this.lastSupaPosAtMs = now;
+          try { await this.supabaseSvc.createUbicacion({ recorrido_id: rec.id, ruta_id: rutaId, lat, lng, velocidad: vel }); } catch {}
+        }
         // Update visuals
         if (this.simPolyline) {
           const pts = (this.simPolyline.getLatLngs() as L.LatLng[]);
@@ -296,12 +327,12 @@ export class MapaPage implements AfterViewInit {
       }
       this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
       const layer = L.geoJSON({ type: 'Feature', geometry: line } as any, {
-        style: () => ({ color: '#0749ffff', weight: 5, opacity: 1 })
+        style: () => ({ color: '#2196f3', weight: 5, opacity: 1 })
       }).addTo(this.map as L.Map);
       this.selectedRutaLayer = layer;
       // Fallback visual con polyline explícita
       try {
-        const pl = L.polyline(this.routeCoords, { color: '#080d5cff', weight: 4, opacity: 0.9 });
+        const pl = L.polyline(this.routeCoords, { color: '#2196f3', weight: 4, opacity: 0.9 });
         pl.addTo(this.map as L.Map);
       } catch {}
       const bounds = (layer as any).getBounds?.();
@@ -337,7 +368,7 @@ export class MapaPage implements AfterViewInit {
       }
       if (!line || !Array.isArray(line.coordinates)) return;
       this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
-      const pl = L.polyline(this.routeCoords, { color: '#1e76e983', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
+      const pl = L.polyline(this.routeCoords, { color: '#2196f3', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
       const bounds = pl.getBounds?.();
       if (bounds) {
         (this.map as L.Map).fitBounds(bounds.pad(0.2));
@@ -349,6 +380,10 @@ export class MapaPage implements AfterViewInit {
   // Observa recorridos activos para clientes y actualiza el mapa
   private clientWatchTimer: any = null;
   private lastWatchedRecorridoId: string | null = null;
+  private clientMarkers: Record<string, L.Marker> = {};
+  private realtimeChannel: any = null;
+  private broadcastChannel: any = null;
+  private clientPolylines: Record<string, L.Polyline> = {};
   private async watchActiveRecorridosForClients() {
     const role = this.userRole();
     if (role === 'conductor') {
@@ -357,39 +392,153 @@ export class MapaPage implements AfterViewInit {
         clearInterval(this.clientWatchTimer);
         this.clientWatchTimer = null;
       }
+      if (this.realtimeChannel) {
+        try { await this.supabaseSvc.supabase.removeChannel(this.realtimeChannel); } catch {}
+        this.realtimeChannel = null;
+      }
       return;
     }
-    const poll = async () => {
+    // Semilla inicial: pintar recorridos activos completos y limpiar completados
+    try {
+      const recs = await this.mapData.loadRecorridos();
+      const isRunning = (s: string) => (s || '').toLowerCase().includes('progreso') || (s || '').toLowerCase().includes('curso');
+      const activos = (recs || []).filter(r => isRunning(r.estado));
+      const completados = (recs || []).filter(r => (r.estado || '').toLowerCase().includes('complet'));
+      // Limpiar completados
+      for (const r of completados) {
+        this.removeClientLayers(r.id as any);
+      }
+      for (const r of activos) {
+        try {
+          const posiciones = await this.mapData.listarPosiciones(r.id as any);
+          // Dibujar polyline con toda la traza existente
+          if (Array.isArray(posiciones) && posiciones.length > 0) {
+            const pts = posiciones.map(p => L.latLng(p.lat, p.lng));
+            this.drawClientPolyline(r.id as any, pts);
+          }
+          const last = Array.isArray(posiciones) && posiciones.length > 0 ? posiciones[posiciones.length - 1] : null;
+          if (last && typeof last.lat === 'number' && typeof last.lng === 'number') {
+            this.drawClientMarker(r.id as any, last.lat, last.lng);
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // Suscripción en tiempo real a ubicaciones nuevas (persistidas en BD)
+    if (this.realtimeChannel) {
+      try { await this.supabaseSvc.supabase.removeChannel(this.realtimeChannel); } catch {}
+      this.realtimeChannel = null;
+    }
+    this.realtimeChannel = this.supabaseSvc.supabase
+      .channel('ubicaciones-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ubicaciones' }, (payload: any) => {
+        try {
+          const row = payload?.new || {};
+          const recId: string = row.recorrido_id || row.ruta_id;
+          const lat: number = (row.lat ?? row.latitud) as number;
+          const lng: number = (row.lng ?? row.longitud) as number;
+          if (typeof lat === 'number' && typeof lng === 'number' && recId) {
+            this.drawClientMarker(recId, lat, lng);
+            this.appendClientPolyline(recId, L.latLng(lat, lng));
+          }
+        } catch {}
+      })
+      .subscribe((status: any) => {
+        // no-op; solo asegurar suscripción activa
+      });
+
+    // Suscripción adicional a canal de broadcast (posiciones en vivo sin escritura)
+    if (this.broadcastChannel) {
+      try { await this.supabaseSvc.supabase.removeChannel(this.broadcastChannel); } catch {}
+      this.broadcastChannel = null;
+    }
+    this.broadcastChannel = this.supabaseSvc.supabase
+      .channel('positions-broadcast')
+      .on('broadcast', { event: 'pos' }, (msg: any) => {
+        try {
+          const payload = msg?.payload || {};
+          const recId: string = payload.recorrido_id || payload.ruta_id;
+          const lat: number = payload.lat;
+          const lng: number = payload.lng;
+          if (typeof lat === 'number' && typeof lng === 'number' && recId) {
+            this.drawClientMarker(recId, lat, lng);
+            this.appendClientPolyline(recId, L.latLng(lat, lng));
+          }
+        } catch {}
+      })
+      .subscribe((status: any) => {
+        // no-op
+      });
+
+    // Suscribirse a eventos de recorridos (start/finish) para mostrar/ocultar marcadores
+    const recChan = this.supabaseSvc.getChannel('recorridos');
+    recChan?.on('broadcast', { event: 'recorrido' }, async (msg: any) => {
       try {
-        const recs = await this.mapData.loadRecorridos();
-        const activo = (recs || []).find(r => (r.estado || '').toLowerCase() === 'en_progreso');
-        const recId = activo?.id || null;
-        if (recId && recId !== this.lastWatchedRecorridoId) {
-          this.lastWatchedRecorridoId = recId;
-          const posiciones = await this.mapData.listarPosiciones(recId);
-          this.drawRecorrido(posiciones);
-        } else if (!recId) {
-          // limpiar dibujo si no hay recorrido activo
-          if (this.recorridoPolyline && this.map) {
-            (this.map as L.Map).removeLayer(this.recorridoPolyline);
-            this.recorridoPolyline = null;
+        const action = msg?.payload?.action;
+        const data = msg?.payload?.recorrido || {};
+        if (action === 'finish') {
+          const id = msg?.payload?.recorridoId || data?.id;
+          if (id) this.removeClientLayers(id);
+        } else if (action === 'start') {
+          const r: any = data;
+          if (r?.id) {
+            const posiciones = await this.mapData.listarPosiciones(r.id);
+            if (Array.isArray(posiciones) && posiciones.length) {
+              this.drawClientPolyline(r.id, posiciones.map(p => L.latLng(p.lat, p.lng)));
+              const last = posiciones[posiciones.length - 1];
+              this.drawClientMarker(r.id, last.lat, last.lng);
+            }
           }
-          if (this.recorridoMarker && this.map) {
-            (this.map as L.Map).removeLayer(this.recorridoMarker);
-            this.recorridoMarker = null;
-          }
-          this.lastWatchedRecorridoId = null;
         }
       } catch {}
-    };
-    await poll();
-    if (this.clientWatchTimer) clearInterval(this.clientWatchTimer);
-    this.clientWatchTimer = setInterval(poll, 5000);
+    })?.subscribe?.(() => {});
+  }
+
+  private drawClientMarker(recId: string, lat: number, lng: number) {
+    if (!this.map) return;
+    const ll: L.LatLngExpression = [lat, lng];
+    const existing = this.clientMarkers[recId];
+    if (existing) {
+      existing.setLatLng(ll);
+    } else {
+      const m = L.marker(ll, { title: `Recorrido ${recId}`, icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
+      this.clientMarkers[recId] = m;
+    }
+  }
+
+  private colorFor(id: string): string {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+    const hue = Math.abs(hash) % 360;
+    return `hsl(${hue}, 85%, 50%)`;
+  }
+
+  private drawClientPolyline(recId: string, pts: L.LatLng[]) {
+    if (!this.map || !pts || pts.length === 0) return;
+    const existing = this.clientPolylines[recId];
+    if (existing) {
+      existing.setLatLngs(pts);
+    } else {
+      const pl = L.polyline(pts, { color: this.colorFor(recId), weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
+      this.clientPolylines[recId] = pl;
+    }
+  }
+
+  private appendClientPolyline(recId: string, p: L.LatLng) {
+    if (!this.map) return;
+    const pl = this.clientPolylines[recId];
+    if (pl) {
+      const arr = (pl.getLatLngs() as L.LatLng[]);
+      arr.push(p);
+      pl.setLatLngs(arr);
+    } else {
+      this.drawClientPolyline(recId, [p]);
+    }
   }
 
   private initMap(): void {
     // Create map
-    this.map = L.map('map').setView([3.8833, -77.0167], 12);
+    this.map = L.map('mapa-map').setView([3.8833, -77.0167], 12);
 
     // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -433,6 +582,14 @@ export class MapaPage implements AfterViewInit {
     if (this.clientWatchTimer) {
       clearInterval(this.clientWatchTimer);
       this.clientWatchTimer = null;
+    }
+    if (this.realtimeChannel) {
+      try { this.supabaseSvc.supabase.removeChannel(this.realtimeChannel); } catch {}
+      this.realtimeChannel = null;
+    }
+    if (this.broadcastChannel) {
+      try { this.supabaseSvc.supabase.removeChannel(this.broadcastChannel); } catch {}
+      this.broadcastChannel = null;
     }
     if (this.map && this.onMapClick) {
       this.map.off('click', this.onMapClick as any);
@@ -576,7 +733,7 @@ export class MapaPage implements AfterViewInit {
     }
 
     this.rutasLayer = L.geoJSON(fc, {
-      style: () => ({ color: '#ff9800', weight: 3, opacity: 0.9 })
+      style: () => ({ color: '#2196f3', weight: 3, opacity: 0.9 })
     }).addTo(this.map);
 
     if (!this.showRutas()) {
@@ -907,12 +1064,15 @@ export class MapaPage implements AfterViewInit {
       const recId = rec.id;
       const lat = pt.lat;
       const lng = pt.lng;
-      if (recId && !recId.startsWith('local-')) {
+      const now = Date.now();
+      if (recId && !recId.startsWith('local-') && (now - this.lastApiPosAtMs) >= this.MIN_API_POS_MS) {
+        this.lastApiPosAtMs = now;
         await this.mapData.registrarPosicion(recId, lat, lng, 5);
       }
-      try {
-        await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId, lat, lng, velocidad: 5 });
-      } catch {}
+      if ((now - this.lastSupaPosAtMs) >= this.MIN_SUPA_POS_MS) {
+        this.lastSupaPosAtMs = now;
+        try { await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId, lat, lng, velocidad: 5 }); } catch {}
+      }
       // Update progress polyline
       if (this.simPolyline) {
         const pts = (this.simPolyline.getLatLngs() as L.LatLng[]);

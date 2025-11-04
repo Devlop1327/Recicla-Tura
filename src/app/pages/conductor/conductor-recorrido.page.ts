@@ -37,6 +37,9 @@ export class ConductorRecorridoPage implements OnDestroy {
   private routeCoords: L.LatLng[] = [];
   private simIndex = 0;
   private simTimer: any = null;
+  private broadcastChannel: any = null;
+  private lastPersistAt = 0;
+  private persistIntervalMs = 5000; // persistir cada 5s
 
   constructor(
     private recorridos: RecorridosService,
@@ -47,6 +50,11 @@ export class ConductorRecorridoPage implements OnDestroy {
   ) {}
 
   ionViewWillEnter() {
+    // unir canal de broadcast para posiciones en vivo
+    if (!this.broadcastChannel) {
+      this.broadcastChannel = this.supabaseSvc.getChannel('positions-broadcast');
+      try { this.broadcastChannel.subscribe(); } catch {}
+    }
     this.ensureMap();
     // Siempre cargar la geometría de la ruta seleccionada y dibujarla
     this.loadAndShowRouteShape().then(() => {
@@ -68,12 +76,20 @@ export class ConductorRecorridoPage implements OnDestroy {
   ionViewWillLeave() {
     this.stopWatching();
     this.stopSimulation();
+    if (this.broadcastChannel) {
+      try { this.supabaseSvc.supabase.removeChannel(this.broadcastChannel); } catch {}
+      this.broadcastChannel = null;
+    }
   }
 
   ngOnDestroy(): void {
     this.stopWatching();
     this.stopSimulation();
     this.destroyMap();
+    if (this.broadcastChannel) {
+      try { this.supabaseSvc.supabase.removeChannel(this.broadcastChannel); } catch {}
+      this.broadcastChannel = null;
+    }
   }
 
   private startWatching() {
@@ -187,16 +203,24 @@ export class ConductorRecorridoPage implements OnDestroy {
     const lng = this.lng();
     const vel = this.velocidad() ?? undefined;
     if (lat == null || lng == null) return;
-    // Enviar a API externa
-    const apiOk = await this.mapData.registrarPosicion(recId, lat, lng, vel);
-    this.lastApiOk.set(!!apiOk);
-    // Guardar en Supabase
+    // Emitir por broadcast en tiempo real (sin escribir BD)
     try {
-      const rutaId = this.recorridos.getCurrentRouteId();
-      const { error } = await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId ?? null, lat, lng, velocidad: vel ?? null });
-      this.lastSupabaseOk.set(!error);
-    } catch {
-      this.lastSupabaseOk.set(false);
+      await this.supabaseSvc.broadcastPosition(this.broadcastChannel, { recorrido_id: recId, ruta_id: this.recorridos.getCurrentRouteId() ?? null, lat, lng });
+    } catch {}
+    // Enviar a API externa
+    const now = Date.now();
+    if (now - this.lastPersistAt >= this.persistIntervalMs) {
+      const apiOk = await this.mapData.registrarPosicion(recId, lat, lng, vel);
+      this.lastApiOk.set(!!apiOk);
+      // Guardar en Supabase
+      try {
+        const rutaId = this.recorridos.getCurrentRouteId();
+        const { error } = await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId ?? null, lat, lng, velocidad: vel ?? null });
+        this.lastSupabaseOk.set(!error);
+      } catch {
+        this.lastSupabaseOk.set(false);
+      }
+      this.lastPersistAt = now;
     }
   }
 

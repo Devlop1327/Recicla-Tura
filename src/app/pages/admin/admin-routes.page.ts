@@ -1,12 +1,13 @@
 import { Component, signal } from '@angular/core';
 import { IonicModule, AlertController, ToastController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { MapDataService, RutaApiItem } from '../../services/map-data.service';
 
 @Component({
   selector: 'app-admin-routes',
   standalone: true,
-  imports: [IonicModule, CommonModule],
+  imports: [IonicModule, CommonModule, RouterModule],
   template: `
     <ion-header>
       <ion-toolbar>
@@ -14,6 +15,12 @@ import { MapDataService, RutaApiItem } from '../../services/map-data.service';
           <ion-menu-button autoHide="false" menu="admin-menu"></ion-menu-button>
         </ion-buttons>
         <ion-title>Rutas</ion-title>
+        <ion-buttons slot="end">
+          <ion-button routerLink="/admin/dashboard" routerDirection="root" color="tertiary">
+            <ion-icon slot="start" name="home"></ion-icon>
+            Dashboard
+          </ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content>

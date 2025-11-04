@@ -18,48 +18,36 @@
       <ion-label>Rutas</ion-label>
       <ion-toggle slot="end" [checked]="showRutas()" (ionChange)="onToggleRutas($event)"></ion-toggle>
     </ion-item>
-    <ion-item>
-      <ion-label>Ruta seleccionada</ion-label>
-      <ion-select interface="popover" color="dark" placeholder="Selecciona una ruta"
-                  [value]="selectedRutaId()"
-                  (ionChange)="onSelectRuta($event)">
-        @for (r of rutas(); track r.id) {
-          <ion-select-option [value]="r.id">{{ r.nombre || r.nombre_ruta }}</ion-select-option>
-        }
-      </ion-select>
-    </ion-item>
-    @if (supportsRecorridos) {
-      @if (userRole() === 'conductor') {
-        <ion-item>
-          <ion-label>Ubicación real</ion-label>
-          <ion-toggle slot="end" [checked]="realTracking()" (ionChange)="onToggleRealTracking($event)"></ion-toggle>
-        </ion-item>
-        <ion-item lines="none">
-          <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
-            Iniciar Recorrido
-          </ion-button>
-          <ion-button size="small" color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()" class="ion-margin-start">
-            Finalizar Recorrido
-          </ion-button>
-          @if (activeRecorrido()) {
-            <ion-badge color="tertiary" class="ion-margin-start">En progreso</ion-badge>
+    @if (userRole() !== 'cliente') {
+      <ion-item>
+        <ion-label>Ruta seleccionada</ion-label>
+        <ion-select interface="popover" color="dark" placeholder="Selecciona una ruta"
+                    [value]="selectedRutaId()"
+                    (ionChange)="onSelectRuta($event)">
+          @for (r of rutas(); track r.id) {
+            <ion-select-option [value]="r.id">{{ r.nombre || r.nombre_ruta }}</ion-select-option>
           }
-        </ion-item>
-      } @else {
-        <ion-item lines="none">
-          <ion-note color="medium">
-            <ion-icon name="information-circle" slot="start"></ion-icon>
-            Solo el conductor puede iniciar/finalizar recorridos
-          </ion-note>
-        </ion-item>
-      }
-    } @else {
-      <ion-item lines="none">
-        <ion-note color="medium">
-          <ion-icon name="information-circle" slot="start"></ion-icon>
-          El seguimiento en tiempo real no está disponible actualmente
-        </ion-note>
+        </ion-select>
       </ion-item>
+      @if (supportsRecorridos) {
+        @if (userRole() === 'conductor') {
+          <ion-item>
+            <ion-label>Ubicación real</ion-label>
+            <ion-toggle slot="end" [checked]="realTracking()" (ionChange)="onToggleRealTracking($event)"></ion-toggle>
+          </ion-item>
+          <ion-item lines="none">
+            <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
+              Iniciar Recorrido
+            </ion-button>
+            <ion-button size="small" color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()" class="ion-margin-start">
+              Finalizar Recorrido
+            </ion-button>
+            @if (activeRecorrido()) {
+              <ion-badge color="tertiary" class="ion-margin-start">En progreso</ion-badge>
+            }
+          </ion-item>
+        }
+      }
     }
     @if (userRole() === 'admin') {
       <ion-item lines="none">
@@ -101,5 +89,5 @@
       </ion-item>
     </ion-list>
   }
-  <ion-card id="map"></ion-card>
+  <ion-card id="mapa-map"></ion-card>
 </ion-content>

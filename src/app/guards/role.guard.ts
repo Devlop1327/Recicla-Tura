@@ -17,7 +17,13 @@ export const roleGuard: CanActivateFn = async (route, state) => {
         return false;
       }
       const prof = await supabase.getProfile(user.id);
-      const data: any = (prof as any)?.data;
+      let data: any = (prof as any)?.data;
+      if (!data) {
+        // Crear perfil por primera vez con rol 'cliente'
+        await supabase.ensureProfileWithRole(user.id, 'cliente');
+        const prof2 = await supabase.getProfile(user.id);
+        data = (prof2 as any)?.data;
+      }
       const r = data?.role || data?.rol || 'cliente';
       if (r === 'admin' || r === 'conductor' || r === 'cliente') {
         role = r;

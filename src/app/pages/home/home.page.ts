@@ -2,7 +2,7 @@ import { Component, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { ApiService, Ruta, Vehiculo, UbicacionVehiculo } from '../../services/api.service';
-import { MapDataService } from '../../services/map-data.service';
+import { MapDataService, RecorridoApiItem } from '../../services/map-data.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { SyncService } from '../../services/sync.service';
 import { Router } from '@angular/router';
@@ -18,6 +18,7 @@ export class HomePage implements OnInit, OnDestroy {
   rutas = signal<Ruta[]>([]);
   vehiculos = signal<Vehiculo[]>([]);
   ubicacionesVehiculos = signal<UbicacionVehiculo[]>([]);
+  recorridos = signal<RecorridoApiItem[]>([]);
   isLoading = signal(true);
   isImporting = signal(false);
   importMessage = signal<string | null>(null);
@@ -27,7 +28,8 @@ export class HomePage implements OnInit, OnDestroy {
   usingApiData = signal(false);
   apiError = signal<string | null>(null);
 
-  private refreshInterval: any;
+  private recorridosTimer: any;
+  private ubicacionesTimer: any;
 
   constructor(
     private apiService: ApiService,
@@ -43,12 +45,19 @@ export class HomePage implements OnInit, OnDestroy {
     this.startRealTimeUpdates();
   }
 
+  ionViewWillEnter() {
+    // Refrescar inmediatamente al volver a la pestaña
+    this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {});
+    setTimeout(() => this.loadUbicacionesVehiculos(this.vehiculos()), 2000);
+  }
+
   role(): 'admin' | 'conductor' | 'cliente' | null {
     return this.supabaseService.currentRole?.() ?? null;
   }
 
   movingVehiclesCount(): number {
-    return (this.ubicacionesVehiculos() || []).filter(u => (u as any).velocidad && (u as any).velocidad > 0).length;
+    // Solo contar los que están "En Curso" según API en todo el sistema
+    return (this.vehiculos() || []).filter(v => this.isVehiculoEnCurso(v)).length;
   }
 
   async go(path: string) {
@@ -76,9 +85,8 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
+    if (this.recorridosTimer) clearInterval(this.recorridosTimer);
+    if (this.ubicacionesTimer) clearInterval(this.ubicacionesTimer);
   }
 
   async loadData() {
@@ -146,6 +154,11 @@ export class HomePage implements OnInit, OnDestroy {
         this.apiError.set('API no disponible, usando datos de ejemplo');
         this.loadDatosEjemplo();
       }
+      // Cargar recorridos si la API los soporta
+      try {
+        const recs = await this.mapData.loadRecorridos();
+        this.recorridos.set(recs || []);
+      } catch {}
       this.isLoading.set(false);
 
     } catch (error) {
@@ -268,15 +281,31 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   startRealTimeUpdates() {
-    // Actualizar ubicaciones cada 30 segundos
-    this.refreshInterval = setInterval(() => {
+    // Disparos iniciales escalonados
+    this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {});
+    setTimeout(() => {
+      this.apiService.getVehiculos().then(vs => { this.vehiculos.set(vs || []); }).catch(() => {});
       this.loadUbicacionesVehiculos(this.vehiculos());
-    }, 30000);
+    }, 5000);
+
+    // Timers separados y desfasados
+    // Recorridos cada 20s
+    this.recorridosTimer = setInterval(() => {
+      this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {});
+    }, 20000);
+
+    // Ubicaciones+vehículos cada 25s (desfasado)
+    this.ubicacionesTimer = setInterval(() => {
+      this.apiService.getVehiculos().then(vs => { this.vehiculos.set(vs || []); }).catch(() => {});
+      this.loadUbicacionesVehiculos(this.vehiculos());
+    }, 25000);
 
     // Suscribirse a cambios en tiempo real de Supabase
     this.supabaseService.subscribeToUbicaciones((payload) => {
       console.log('Cambio en ubicaciones:', payload);
+      // Actualizar ubicaciones inmediato, refrescar recorridos con un pequeño retraso
       this.loadUbicacionesVehiculos(this.vehiculos());
+      setTimeout(() => this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {}), 3000);
     });
   }
 
@@ -295,11 +324,88 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   getVehiculosDeRuta(_rutaId: string): Vehiculo[] {
-    return this.vehiculos().filter(v => !!(v as any).activo);
+    const rutaId = this.selectedRuta()?.id || null;
+    const list = this.vehiculos();
+    const hasRecorridoEnCursoForVehiculo = (vehiculoId: string) => {
+      const rec = this.getRecorridoVehiculo(vehiculoId);
+      if (!rec) return false;
+      if (rutaId && rec.ruta_id !== rutaId) return false;
+      return this.isEstadoRunning(rec.estado);
+    };
+    return list.filter(v => !!(v as any).activo || hasRecorridoEnCursoForVehiculo(v.id));
   }
 
   getUbicacionVehiculo(vehiculoId: string): UbicacionVehiculo | undefined {
     return this.ubicacionesVehiculos().find(u => u.vehiculo_id === vehiculoId);
+  }
+
+  isVehiculoEnRuta(v: Vehiculo): boolean {
+    // Si hay un recorrido activo para la ruta seleccionada, considerar "en ruta"
+    const sel = this.selectedRuta();
+    if (sel && this.hasActiveRecorridoForRuta(sel.id)) return true;
+    const u = this.getUbicacionVehiculo(v.id) as any;
+    const speed = typeof u?.velocidad === 'number' ? u.velocidad : 0;
+    return (speed > 0) || !!(v as any).activo;
+  }
+
+  // Estado basado en recorridos del API por vehículo
+  private isEstadoRunning(estado: string): boolean {
+    const t = (estado || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+    return t.includes('progreso') || t.includes('curso');
+  }
+
+  private isEstadoCompleted(estado: string): boolean {
+    const t = (estado || '').toLowerCase();
+    return t.includes('complet');
+  }
+
+  private getRecorridoVehiculo(vehiculoId: string): RecorridoApiItem | null {
+    const list = this.recorridos() || [];
+    const byVehiculo = list.filter(r => r.vehiculo_id === vehiculoId);
+    if (byVehiculo.length === 0) return null;
+    const getStart = (r: any) => {
+      const s = r?.iniciado_en || r?.ts_inicio || r?.created_at || r?.updated_at;
+      return s ? new Date(s).getTime() : 0;
+    };
+    return byVehiculo.sort((a, b) => getStart(b) - getStart(a))[0];
+  }
+
+  isVehiculoEnCurso(v: Vehiculo): boolean {
+    const rec = this.getRecorridoVehiculo(v.id);
+    return !!rec && this.isEstadoRunning(rec.estado);
+  }
+
+  isVehiculoMoviendose(v: Vehiculo): boolean {
+    const u = this.getUbicacionVehiculo(v.id) as any;
+    const speed = typeof u?.velocidad === 'number' ? u.velocidad : 0;
+    return speed > 0;
+  }
+
+  estadoVehiculo(v: Vehiculo): { text: string; color: string } {
+    const rec = this.getRecorridoVehiculo(v.id);
+    if (rec) {
+      if (this.isEstadoRunning(rec.estado)) {
+        // Mostrar texto del API (ej: "En Curso")
+        return { text: rec.estado, color: 'success' };
+      }
+      if (this.isEstadoCompleted(rec.estado)) {
+        // Mapear "Completado" -> "Detenido" en UI
+        return { text: 'Detenido', color: 'warning' };
+      }
+      return { text: rec.estado, color: 'warning' };
+    }
+    // Fallback a velocidad/activo cuando no hay recorrido disponible
+    if (this.isVehiculoMoviendose(v)) return { text: 'En movimiento', color: 'success' };
+    if ((v as any).activo) return { text: 'En ruta', color: 'success' };
+    return { text: 'Detenido', color: 'warning' };
+  }
+
+  private hasActiveRecorridoForRuta(rutaId: string): boolean {
+    const isRunning = (s: string) => {
+      const t = (s || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+      return t.includes('progreso') || t.includes('curso');
+    };
+    return (this.recorridos() || []).some(r => r.ruta_id === rutaId && isRunning(r.estado));
   }
 
   formatTime(timestamp: string): string {

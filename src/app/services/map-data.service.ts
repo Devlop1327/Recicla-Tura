@@ -28,6 +28,7 @@ export interface RecorridoApiItem {
   id: string;
   ruta_id: string;
   perfil_id: string;
+  vehiculo_id?: string;
   estado: 'en_progreso' | 'finalizado' | string;
   iniciado_en: string;
   finalizado_en?: string;
@@ -56,6 +57,14 @@ export class MapDataService {
   error = signal<string | null>(null);
 
   constructor(private http: HttpClient, private supabase: SupabaseService) {}
+
+  private get recorridosChannel() {
+    try {
+      return this.supabase.getChannel('recorridos');
+    } catch {
+      return null as any;
+    }
+  }
 
   async loadCalles(): Promise<CalleApiItem[]> {
     try {
@@ -169,6 +178,12 @@ export class MapDataService {
     try {
       this.loading.set(true);
       this.error.set(null);
+      // 0) Preferir Supabase primero para evitar CORS
+      const supaFirst = await this.loadRutasFromSupabaseGeojson();
+      if (supaFirst.length > 0) {
+        this.rutas.set(supaFirst);
+        return supaFirst;
+      }
       console.log('[MapDataService] GET /rutas?perfil_id=', this.profileId);
       let data: { data: RutaApiItem[] } | undefined;
       try {
@@ -249,12 +264,24 @@ export class MapDataService {
         .from('rutas_geojson')
         .select('id,nombre,descripcion,shape');
       if (error) {
-        console.warn('[MapDataService] rutas_geojson view not available:', error?.message || error);
-        return [];
+        // View no disponible: intentar tabla 'rutas' básica y mapear si trae 'shape'
+        try {
+          const { data: rutasBasic, error: errBasic } = await this.supabase.supabase
+            .from('rutas')
+            .select('id,nombre,descripcion,shape');
+          if (errBasic) {
+            return [];
+          }
+          const rows = Array.isArray(rutasBasic) ? rutasBasic : [];
+          return rows.map((r: any) => ({ id: r.id, nombre: r.nombre, descripcion: r.descripcion, shape: r.shape } as RutaApiItem));
+        } catch {
+          return [];
+        }
       }
       const rows = Array.isArray(data) ? data : [];
       return rows.map((r: any) => ({ id: r.id, nombre: r.nombre, descripcion: r.descripcion, shape: r.shape } as RutaApiItem));
     } catch (e) {
+      // Silencioso: no forzar error en consola si la vista no existe
       return [];
     }
   }
@@ -264,7 +291,13 @@ export class MapDataService {
       const data = await firstValueFrom(
         this.http.get<{ data: RutaApiItem }>(`${this.baseUrl}/rutas/${id}`)
       );
-      return data?.data ?? null;
+      const rec = data?.data ?? null;
+      // Emitir señal realtime para que clientes refresquen
+      try {
+        const ch = this.recorridosChannel;
+        await ch?.send({ type: 'broadcast', event: 'recorrido', payload: { action: 'start', recorrido: rec } });
+      } catch {}
+      return rec;
     } catch (e: any) {
       console.error('[MapDataService] Error al obtener ruta:', e?.error ?? e);
       return null;
@@ -469,6 +502,11 @@ export class MapDataService {
           { params: { perfil_id: this.profileId } as any }
         )
       );
+      // Emitir señal realtime para que clientes refresquen
+      try {
+        const ch = this.recorridosChannel;
+        await ch?.send({ type: 'broadcast', event: 'recorrido', payload: { action: 'finish', recorridoId } });
+      } catch {}
       return true;
     } catch (e: any) {
       console.warn('[MapDataService] finalizarRecorrido con perfil_id falló, reintentando sin body...', e?.message || e);

@@ -38,3 +38,11 @@
 /* @import "@ionic/angular/css/palettes/dark.always.css"; */
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import "@ionic/angular/css/palettes/dark.system.css";
+
+/* Estilos específicos para el alert de Crear usuario */
+.create-user-alert {
+  .alert-radio-label {
+    color: var(--ion-color-primary, #3880ff) !important;
+    font-weight: 600;
+  }
+}

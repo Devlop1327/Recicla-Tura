@@ -188,28 +188,14 @@
       </ion-col>
     </ion-row>
 
-    <!-- Mapa -->
-    <ion-row class="map-section">
-      <ion-col size="12">
-        <ion-card id="map" class="map-container">
-          <ion-card-content class="ion-text-center">
-            <ion-icon name="map" size="large" color="medium"></ion-icon>
-            <ion-text>Mapa de Buenaventura</ion-text>
-            <ion-text
-              >📍 Coordenadas: {{ mapCenter().lat }}, {{ mapCenter().lng
-              }}</ion-text
-            >
-          </ion-card-content>
-        </ion-card>
-      </ion-col>
-    </ion-row>
+   
 
     <!-- Lista de vehículos -->
     <ion-row class="vehicles-section">
       <ion-col size="12">
         <ion-card>
           <ion-card-header>
-            <ion-card-title>🚛 Vehículos en Ruta</ion-card-title>
+            <ion-card-title>🚛 Estado de Vehículos</ion-card-title>
           </ion-card-header>
           <ion-card-content>
             @if (isLoading()) {
@@ -247,14 +233,13 @@
                       }}</ion-col
                     >
                     <ion-col class="speed"
-                      >🏃 {{ getUbicacionVehiculo(vehiculo.id)!.velocidad }}
+                      >🚛{{ getUbicacionVehiculo(vehiculo.id)!.velocidad }}
                       km/h</ion-col
                     >
                     <ion-badge
-                      [color]="getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'success' : 'warning'"
+                      [color]="estadoVehiculo(vehiculo).color"
                     >
-                      {{ getUbicacionVehiculo(vehiculo.id)!.velocidad > 0 ? 'En
-                      movimiento' : 'Detenido' }}
+                      {{ estadoVehiculo(vehiculo).text }}
                     </ion-badge>
                   </ion-row>
                   } @else {
