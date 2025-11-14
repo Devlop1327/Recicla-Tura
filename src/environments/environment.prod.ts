@@ -7,7 +7,7 @@ export const environment = {
   api: {
     baseUrl: 'http://apirecoleccion.gonzaloandreslucio.com/api/',
     profileId: '3c4e03f8-102a-47c8-b4bc-6e86b7cdef07',
-    supportsRecorridos: false
+    supportsRecorridos: true
   },
   map: {
     center: {

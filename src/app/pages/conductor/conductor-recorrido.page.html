@@ -78,8 +78,13 @@
       <ion-chip [color]="lastSupabaseOk() === true ? 'success' : (lastSupabaseOk() === false ? 'danger' : 'medium')">Supabase</ion-chip>
     </ion-card-content>
   </ion-card>
-
-  <ion-button expand="block" color="danger" (click)="finalizar()" [disabled]="!activo()">
-    Finalizar recorrido
-  </ion-button>
 </ion-content>
+
+<ion-footer>
+  <ion-toolbar>
+    <ion-button expand="block" color="danger" (click)="finalizar()" [disabled]="!activo()">
+      Finalizar recorrido
+    </ion-button>
+  </ion-toolbar>
+  
+</ion-footer>

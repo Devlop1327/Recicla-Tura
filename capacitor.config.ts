@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.reciclatura.app',
-  appName: 'recicla-tura',
+  appName: 'Recicla-Tura',
   webDir: 'www'
 };
 

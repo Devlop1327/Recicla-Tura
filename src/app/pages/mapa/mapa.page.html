@@ -31,11 +31,11 @@
       </ion-item>
       @if (supportsRecorridos) {
         @if (userRole() === 'conductor') {
-          <ion-item>
+          <ion-item class="actions-inline">
             <ion-label>Ubicación real</ion-label>
             <ion-toggle slot="end" [checked]="realTracking()" (ionChange)="onToggleRealTracking($event)"></ion-toggle>
           </ion-item>
-          <ion-item lines="none">
+          <ion-item lines="none" class="actions-inline">
             <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
               Iniciar Recorrido
             </ion-button>
@@ -91,3 +91,18 @@
   }
   <ion-card id="mapa-map"></ion-card>
 </ion-content>
+
+<ion-footer class="mapa-actions" [hidden]="!(supportsRecorridos && userRole() === 'conductor')">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
+        Iniciar
+      </ion-button>
+    </ion-buttons>
+    <ion-buttons slot="end">
+      <ion-button color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()">
+        Finalizar
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-footer>

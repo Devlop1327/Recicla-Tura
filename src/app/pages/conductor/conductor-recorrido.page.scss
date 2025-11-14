@@ -1,11 +1,16 @@
- 
-#recorrido-map {
-  height: calc(100vh - 380px);
+ #recorrido-map {
+  height: min(60dvh, calc(100dvh - 320px - var(--ion-safe-area-bottom, 0px)));
   width: 100%;
+}
+
+@media (max-width: 380px) {
+  #recorrido-map {
+    height: min(55dvh, calc(100dvh - 360px - var(--ion-safe-area-bottom, 0px)));
+  }
 }
 
 @media (min-width: 768px) {
   #recorrido-map {
-    height: calc(100vh - 320px);
+    height: calc(100dvh - 320px);
   }
 }

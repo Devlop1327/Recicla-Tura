@@ -1,1 +1,12 @@
  
+@media (max-width: 420px) {
+  ion-card[color="success"] ion-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  ion-card[color="success"] ion-button {
+    width: 100%;
+  }
+}
+

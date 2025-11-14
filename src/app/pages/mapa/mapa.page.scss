@@ -3,12 +3,28 @@ ion-content {
 }
 
 #mapa-map {
-  height: calc(100vh - 260px);
+  height: min(65dvh, calc(100dvh - 280px - var(--ion-safe-area-bottom, 0px)));
   width: 100%;
+}
+
+@media (max-width: 380px) {
+  #mapa-map {
+    height: min(60dvh, calc(100dvh - 320px - var(--ion-safe-area-bottom, 0px)));
+  }
 }
 
 @media (min-width: 768px) {
   #mapa-map {
-    height: calc(100vh - 180px);
+    height: calc(100dvh - 200px);
   }
+}
+
+/* Mobile footer actions visibility and spacing */
+.mapa-actions { display: none; }
+.actions-inline { display: block; }
+
+@media (max-width: 480px) {
+  .mapa-actions { display: block; }
+  .actions-inline { display: none !important; }
+  ion-content { --padding-bottom: calc(72px + var(--ion-safe-area-bottom, 0px)); }
 }
