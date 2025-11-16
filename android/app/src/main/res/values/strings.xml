@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">recicla-tura</string>
-    <string name="title_activity_main">recicla-tura</string>
+    <string name="app_name">Recicla-Tura</string>
+    <string name="title_activity_main">Recicla-Tura</string>
     <string name="package_name">com.reciclatura.app</string>
     <string name="custom_url_scheme">com.reciclatura.app</string>
 </resources>

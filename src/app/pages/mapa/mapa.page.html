@@ -1,9 +1,9 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/tabs/home"></ion-back-button>
+      <ion-back-button class="back-chevron" text="" color="primary" defaultHref="/tabs/home"></ion-back-button>
     </ion-buttons>
-    <ion-title>Mapa de Buenaventura</ion-title>
+    <ion-title>Mapa</ion-title>
     <ion-badge slot="end" color="primary" class="ion-margin-end">Rol: {{ userRole() || '...' }}</ion-badge>
   </ion-toolbar>
 </ion-header>
@@ -19,15 +19,9 @@
       <ion-toggle slot="end" [checked]="showRutas()" (ionChange)="onToggleRutas($event)"></ion-toggle>
     </ion-item>
     @if (userRole() !== 'cliente') {
-      <ion-item>
-        <ion-label>Ruta seleccionada</ion-label>
-        <ion-select interface="popover" color="dark" placeholder="Selecciona una ruta"
-                    [value]="selectedRutaId()"
-                    (ionChange)="onSelectRuta($event)">
-          @for (r of rutas(); track r.id) {
-            <ion-select-option [value]="r.id">{{ r.nombre || r.nombre_ruta }}</ion-select-option>
-          }
-        </ion-select>
+      <ion-item class="route-row" button detail (click)="openRoutePicker()">
+        <ion-label>Ruta</ion-label>
+        <ion-note slot="end">{{ selectedRutaNombre || 'Selecciona' }}</ion-note>
       </ion-item>
       @if (supportsRecorridos) {
         @if (userRole() === 'conductor') {
@@ -36,12 +30,8 @@
             <ion-toggle slot="end" [checked]="realTracking()" (ionChange)="onToggleRealTracking($event)"></ion-toggle>
           </ion-item>
           <ion-item lines="none" class="actions-inline">
-            <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
-              Iniciar Recorrido
-            </ion-button>
-            <ion-button size="small" color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()" class="ion-margin-start">
-              Finalizar Recorrido
-            </ion-button>
+            <ion-button size="small" color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">Iniciar</ion-button>
+            <ion-button size="small" color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()" class="ion-margin-start">Finalizar</ion-button>
             @if (activeRecorrido()) {
               <ion-badge color="tertiary" class="ion-margin-start">En progreso</ion-badge>
             }
@@ -49,60 +39,54 @@
         }
       }
     }
-    @if (userRole() === 'admin') {
-      <ion-item lines="none">
-        <ion-button size="small" color="secondary" (click)="createExampleRuta()">
-          Crear ruta de ejemplo
-        </ion-button>
-      </ion-item>
-    }
+   
   </ion-list>
   @if (userRole() === 'admin') {
     <ion-list inset="true">
-      <ion-item lines="none">
-        <ion-button size="small" color="primary" (click)="toggleEditing()">
-          {{ editing() ? 'Salir edición' : 'Editar ruta' }}
-        </ion-button>
-        <ion-button size="small" color="medium" (click)="undoLast()" [disabled]="draftCount() === 0" class="ion-margin-start">
-          Deshacer punto
-        </ion-button>
-        <ion-button size="small" color="light" (click)="clearDraft()" [disabled]="draftCount() === 0" class="ion-margin-start">
-          Limpiar
-        </ion-button>
-        <ion-button size="small" color="success" (click)="saveDraftAsRuta()" [disabled]="draftCount() < 2" class="ion-margin-start">
-          Guardar como Ruta ({{ draftCount() }})
-        </ion-button>
-        <ion-button size="small" color="tertiary" (click)="saveDraftAsCalle()" [disabled]="draftCount() < 2" class="ion-margin-start">
-          Guardar como Calle
-        </ion-button>
+      <ion-item lines="none" class="actions-inline">
+        <ion-button size="small" color="primary" (click)="toggleEditing()">{{ editing() ? 'Salir edición' : 'Editar ruta' }}</ion-button>
+        <ion-button size="small" color="medium" (click)="undoLast()" [disabled]="draftCount() === 0">Deshacer</ion-button>
+        <ion-button size="small" color="light" (click)="clearDraft()" [disabled]="draftCount() === 0">Limpiar</ion-button>
       </ion-item>
-      <ion-item lines="none">
-        <ion-button size="small" color="secondary" (click)="startEditSelectedRuta()" [disabled]="!selectedRutaId()" >
-          Editar geometría de ruta seleccionada
-        </ion-button>
-        <ion-button size="small" color="success" class="ion-margin-start" (click)="saveEditedRuta()" [disabled]="!editingSelected() || draftCount() < 2">
-          Guardar cambios
-        </ion-button>
-        <ion-button size="small" color="medium" class="ion-margin-start" (click)="cancelEditRuta()" [disabled]="!editingSelected()">
-          Cancelar edición
-        </ion-button>
+      <ion-item lines="none" class="actions-inline">
+        <ion-button size="small" color="secondary" (click)="startEditSelectedRuta()" [disabled]="!selectedRutaId()">Editar geom. ruta</ion-button>
+        <ion-button size="small" color="success" (click)="saveEditedRuta()" [disabled]="!editingSelected() || draftCount() < 2">Guardar cambios</ion-button>
+        <ion-button size="small" color="medium" (click)="cancelEditRuta()" [disabled]="!editingSelected()">Cancelar</ion-button>
+      </ion-item>
+      <ion-item lines="none" class="actions-inline">
+        <ion-button size="small" color="success" (click)="saveDraftAsRuta()" [disabled]="draftCount() < 2">Guardar Ruta ({{ draftCount() }})</ion-button>
+        <ion-button size="small" color="tertiary" (click)="saveDraftAsCalle()" [disabled]="draftCount() < 2">Guardar Calle</ion-button>
       </ion-item>
     </ion-list>
   }
   <ion-card id="mapa-map"></ion-card>
-</ion-content>
 
-<ion-footer class="mapa-actions" [hidden]="!(supportsRecorridos && userRole() === 'conductor')">
-  <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-button color="success" [disabled]="!selectedRutaId()" (click)="onStartRecorrido()">
-        Iniciar
-      </ion-button>
-    </ion-buttons>
-    <ion-buttons slot="end">
-      <ion-button color="warning" [disabled]="!activeRecorrido()" (click)="onFinishRecorrido()">
-        Finalizar
-      </ion-button>
-    </ion-buttons>
-  </ion-toolbar>
-</ion-footer>
+  @if (userRole() !== 'cliente') {
+    <ion-list inset="true">
+      <ion-item lines="full">
+        <ion-label>Rutas</ion-label>
+        <ion-note slot="end">{{ rutas().length || 0 }} disponibles</ion-note>
+      </ion-item>
+      @for (r of rutas(); track r.id) {
+        <ion-item button (click)="selectRuta(r.id)">
+          <ion-label>{{ r.nombre || r.nombre_ruta }}</ion-label>
+          @if (selectedRutaId() === r.id) { <ion-badge color="primary" slot="end">Seleccionada</ion-badge> }
+        </ion-item>
+      }
+    </ion-list>
+    @if (userRole() === 'conductor' || userRole() === 'admin') {
+      <ion-list inset="true">
+        <ion-item lines="full">
+          <ion-label>Vehículos Disponibles</ion-label>
+          <ion-note slot="end">{{ availableVehicles().length || 0 }} de {{ vehicles().length }}</ion-note>
+        </ion-item>
+        @for (v of availableVehicles(); track v.id) {
+          <ion-item button (click)="selectVehiculo(v.id)">
+            <ion-label>{{ v.placa }}@if (v.modelo) { <span> · {{ v.modelo }}</span> }</ion-label>
+            @if (selectedVehiculoId() === v.id) { <ion-badge color="primary" slot="end">Seleccionado</ion-badge> }
+          </ion-item>
+        }
+      </ion-list>
+    }
+  }
+</ion-content>

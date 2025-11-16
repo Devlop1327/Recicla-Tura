@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, throwError } from 'rxjs';
+import { timeout, catchError } from 'rxjs/operators';
+import { Capacitor, CapacitorHttp, HttpOptions } from '@capacitor/core';
 
 export interface Ruta {
   id: string;
@@ -36,6 +38,7 @@ export interface Vehiculo {
   id: string;
   placa: string;
   modelo: string | null;
+  estado?: 'disponible' | 'en_ruta' | 'mantenimiento' | string;
   marca: string | null;
   activo: boolean;
   perfil_id: string;
@@ -67,7 +70,15 @@ export class ApiService {
   async getRutas(): Promise<Ruta[]> {
     const url = `${this.baseUrl}rutas?perfil_id=${this.profileId}`;
     console.log('API Service - Solicitando rutas desde:', url);
-    const response = await firstValueFrom(this.http.get<any>(url));
+    if (Capacitor.isNativePlatform()) {
+      const opts: HttpOptions = { url, method: 'GET', headers: { Accept: 'application/json' } };
+      const response = await CapacitorHttp.get(opts);
+      const body = response?.data;
+      if (Array.isArray(body)) return body as Ruta[];
+      if (body && Array.isArray(body.data)) return body.data as Ruta[];
+      return [];
+    }
+    const response = await firstValueFrom(this.http.get<any>(url).pipe(timeout(12000), catchError(err => { console.warn('API getRutas error:', err?.status, err?.message); return throwError(() => err); })));
     // Soportar respuesta paginada { data: Ruta[], ... } o directa Ruta[]
     if (Array.isArray(response)) {
       return response as Ruta[];
@@ -80,13 +91,23 @@ export class ApiService {
 
   // Obtener una ruta específica
   async getRuta(id: string): Promise<Ruta> {
-    const response = await firstValueFrom(this.http.get<{data: Ruta}>(`${this.baseUrl}rutas/${id}?perfil_id=${this.profileId}`));
-    return response?.data;
+    const url = `${this.baseUrl}rutas/${id}?perfil_id=${this.profileId}`;
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
+      return (res?.data?.data as Ruta) ?? null as any;
+    }
+    const response = await firstValueFrom(this.http.get<{data: Ruta}>(url).pipe(timeout(12000)));
+    return response?.data as any;
   }
 
   // Obtener puntos de una ruta
   async getPuntosRuta(rutaId: string): Promise<PuntoRuta[]> {
-    const response = await firstValueFrom(this.http.get<{data: PuntoRuta[]}>(`${this.baseUrl}rutas/${rutaId}/puntos?perfil_id=${this.profileId}`));
+    const url = `${this.baseUrl}rutas/${rutaId}/puntos?perfil_id=${this.profileId}`;
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
+      return (res?.data?.data as PuntoRuta[]) || [];
+    }
+    const response = await firstValueFrom(this.http.get<{data: PuntoRuta[]}>(url).pipe(timeout(12000)));
     return response?.data || [];
   }
 
@@ -94,7 +115,11 @@ export class ApiService {
   async getVehiculos(): Promise<Vehiculo[]> {
     const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
     console.log('API Service - Solicitando vehículos desde:', url);
-    const response = await firstValueFrom(this.http.get<{data: Vehiculo[]}>(url));
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
+      return (res?.data?.data as Vehiculo[]) || [];
+    }
+    const response = await firstValueFrom(this.http.get<{data: Vehiculo[]}>(url).pipe(timeout(12000), catchError(err => { console.warn('API getVehiculos error:', err?.status, err?.message); return throwError(() => err); })));
     return response?.data || [];
   }
 
@@ -119,27 +144,46 @@ export class ApiService {
   async createVehiculo(payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>): Promise<Vehiculo> {
     const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
     console.log('API Service - Creando vehículo en:', url, payload);
-    return await firstValueFrom(this.http.post<Vehiculo>(url, payload));
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: payload });
+      return (res?.data as Vehiculo) as any;
+    }
+    return await firstValueFrom(this.http.post<Vehiculo>(url, payload).pipe(timeout(12000)));
   }
 
   // Actualizar vehículo
   async updateVehiculo(id: string, payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>): Promise<Vehiculo> {
     const url = `${this.baseUrl}vehiculos/${id}?perfil_id=${this.profileId}`;
     console.log('API Service - Actualizando vehículo en:', url, payload);
-    return await firstValueFrom(this.http.put<Vehiculo>(url, payload));
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.put({ url, headers: { 'Content-Type': 'application/json' }, data: payload });
+      return (res?.data as Vehiculo) as any;
+    }
+    return await firstValueFrom(this.http.put<Vehiculo>(url, payload).pipe(timeout(12000)));
   }
 
   // Eliminar vehículo
   async deleteVehiculo(id: string): Promise<any> {
     const url = `${this.baseUrl}vehiculos/${id}?perfil_id=${this.profileId}`;
     console.log('API Service - Eliminando vehículo en:', url);
-    return await firstValueFrom(this.http.delete<any>(url));
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.delete({ url });
+      return res?.data;
+    }
+    return await firstValueFrom(this.http.delete<any>(url).pipe(timeout(12000)));
   }
 
   // Obtener calles
   async getCalles(): Promise<Calle[]> {
     const url = `${this.baseUrl}calles?perfil_id=${this.profileId}`;
-    const resp = await firstValueFrom(this.http.get<any>(url));
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
+      const resp = res?.data;
+      if (Array.isArray(resp)) return resp as Calle[];
+      if (resp && Array.isArray(resp.data)) return resp.data as Calle[];
+      return [];
+    }
+    const resp = await firstValueFrom(this.http.get<any>(url).pipe(timeout(12000)));
     // Soporta formato [{...}] o { data: [{...}] }
     if (Array.isArray(resp)) return resp as Calle[];
     if (resp && Array.isArray(resp.data)) return resp.data as Calle[];
@@ -148,11 +192,21 @@ export class ApiService {
 
   // Buscar direcciones
   async buscarDirecciones(query: string): Promise<any[]> {
-    return await firstValueFrom(this.http.get<any[]>(`${this.baseUrl}buscar?q=${encodeURIComponent(query)}&perfil_id=${this.profileId}`));
+    const url = `${this.baseUrl}buscar?q=${encodeURIComponent(query)}&perfil_id=${this.profileId}`;
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({ url });
+      return (res?.data as any[]) || [];
+    }
+    return await firstValueFrom(this.http.get<any[]>(url).pipe(timeout(12000)));
   }
 
   // Obtener información de Buenaventura
   async getInfoBuenaventura(): Promise<any> {
-    return await firstValueFrom(this.http.get<any>(`${this.baseUrl}buenaventura?perfil_id=${this.profileId}`));
+    const url = `${this.baseUrl}buenaventura?perfil_id=${this.profileId}`;
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({ url });
+      return res?.data;
+    }
+    return await firstValueFrom(this.http.get<any>(url).pipe(timeout(12000)));
   }
 }

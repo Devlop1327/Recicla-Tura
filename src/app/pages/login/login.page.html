@@ -1,15 +1,16 @@
  <ion-content class="login-content">
   <ion-grid class="login-container">
-    <ion-row class="logo-section" justify-content-center>
-      <ion-col size="12" class="ion-text-center">
-        <ion-img src="assets/icon/Logo.png" alt="Logo"></ion-img>
-        <ion-text>Rastrea tu basura en tiempo real</ion-text>
-      </ion-col>
-    </ion-row>
+    
 
     <ion-row class="form-section" justify-content-center>
       <ion-card>
         <ion-card-content>
+          <ion-row class="ion-justify-content-center ion-margin-bottom">
+            <ion-col size="12" class="ion-text-center">
+              <ion-img class="form-logo" src="assets/icon/Logo.png" alt="Logo"></ion-img>
+              <ion-text class="form-subtitle">Rastrea tu basura en tiempo real</ion-text>
+            </ion-col>
+          </ion-row>
           <form [formGroup]="form" (ngSubmit)="isSignUp() ? signUp() : login()">
             <ion-list>
               <ion-item>
@@ -25,7 +26,7 @@
               @if (isSignUp()) {
                 <ion-item>
                   <ion-label position="stacked">Rol</ion-label>
-                  <ion-select interface="popover" placeholder="Selecciona tu rol"
+                  <ion-select interface="alert" placeholder="Selecciona tu rol"
                               [value]="role()" (ionChange)="role.set($event.detail.value)">
                     <ion-select-option value="cliente">Cliente (solo visualización)</ion-select-option>
                     <ion-select-option value="conductor">Conductor (inicia recorridos)</ion-select-option>

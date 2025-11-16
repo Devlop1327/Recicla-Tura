@@ -7,6 +7,7 @@ import { MapDataService } from '../../services/map-data.service';
 import { SupabaseService } from '../../services/supabase.service';
 
 import * as L from 'leaflet';
+import { Geolocation } from '@capacitor/geolocation';
 
 
 @Component({
@@ -98,6 +99,8 @@ export class ConductorRecorridoPage implements OnDestroy {
       this.errorMsg.set('Geolocalización no disponible en este dispositivo');
       return;
     }
+    // Asegurar permisos en Android/iOS con Capacitor
+    this.ensureGeoPermission().catch(() => {});
     if (this.watchId !== null) return;
     this.errorMsg.set(null);
     this.watchId = navigator.geolocation.watchPosition(
@@ -123,6 +126,16 @@ export class ConductorRecorridoPage implements OnDestroy {
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
     }
+  }
+
+  private async ensureGeoPermission() {
+    try {
+      const stat = await Geolocation.checkPermissions();
+      const loc = (stat as any)?.location;
+      if (loc !== 'granted' && loc !== 'limited') {
+        await Geolocation.requestPermissions();
+      }
+    } catch {}
   }
 
   private async loadAndShowRouteShape() {

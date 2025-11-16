@@ -8,6 +8,8 @@ import { environment } from '../../environments/environment';
 export class SupabaseService {
   public supabase: SupabaseClient;
   public currentRole = signal<'admin' | 'conductor' | 'cliente' | null>(null);
+  public currentUser = signal<User | null>(null);
+  public currentProfile = signal<any | null>(null);
   // Evitar múltiples llamadas concurrentes a auth.getUser() que generan NavigatorLockAcquireTimeoutError
   private getUserInFlight: Promise<User | null> | null = null;
   private cachedUser: User | null = null;
@@ -22,8 +24,16 @@ export class SupabaseService {
 
     // Escuchar cambios en la autenticación
     this.supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session);
+      try {
+        const u = session?.user ?? null;
+        this.cachedUser = u;
+        this.cachedUserAt = Date.now();
+        this.currentUser.set(u);
+      } catch {}
+      this.loadCurrentUserAndProfile();
     });
+
+    this.loadCurrentUserAndProfile();
   }
 
   setCurrentRole(role: 'admin' | 'conductor' | 'cliente' | null) {
@@ -78,6 +88,24 @@ export class SupabaseService {
       }
     })();
     return this.getUserInFlight;
+  }
+
+  async loadCurrentUserAndProfile(): Promise<void> {
+    try {
+      const user = await this.getCurrentUser();
+      this.currentUser.set(user);
+      if (user?.id) {
+        const { data } = await this.getProfile(user.id);
+        this.currentProfile.set(data ?? null);
+        const role = (data as any)?.role ?? null;
+        this.setCurrentRole(role as any);
+      } else {
+        this.currentProfile.set(null);
+        this.setCurrentRole(null);
+      }
+    } catch {
+      this.currentProfile.set(null);
+    }
   }
 
   // Recuperar contraseña: envía email de restablecimiento

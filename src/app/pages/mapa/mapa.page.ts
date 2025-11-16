@@ -1,6 +1,6 @@
 import { Component, AfterViewInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, AlertController } from '@ionic/angular';
+import { IonicModule, AlertController, NavController } from '@ionic/angular';
 import { HttpClientModule } from '@angular/common/http';
 import * as L from 'leaflet';
 import { MapDataService, RutaApiItem, RecorridoApiItem, PosicionApiItem } from '../../services/map-data.service';
@@ -48,6 +48,23 @@ export class MapaPage implements AfterViewInit {
   rutas = signal<RutaApiItem[]>([]);
   selectedRutaId = signal<string | null>(null);
   activeRecorrido = signal<RecorridoApiItem | null>(null);
+  vehicles = signal<Vehiculo[]>([]);
+  
+  // Obtener vehículos disponibles
+  availableVehicles() {
+    return this.vehicles().filter(v => {
+      const any: any = v as any;
+      if (typeof any.activo === 'boolean' && any.activo === false) return false;
+      if (typeof any.estado === 'string') {
+        const s = any.estado.toLowerCase();
+        if (s.includes('mantenimiento')) return false;
+        // No excluir por 'en_ruta' debido a inconsistencia del API
+      }
+      return true;
+    });
+  }
+
+  selectedVehiculoId = signal<string | null>(null);
   readonly supportsRecorridos = environment.api.supportsRecorridos ?? false;
   userRole = signal<'admin' | 'conductor' | 'cliente' | null>(null);
   editing = signal(false);
@@ -60,7 +77,8 @@ export class MapaPage implements AfterViewInit {
     private mapData: MapDataService,
     private supabaseSvc: SupabaseService,
     private api: ApiService,
-    private alertCtrl: AlertController
+    private alertCtrl: AlertController,
+    private navCtrl: NavController
   ) { }
 
   ngAfterViewInit() {
@@ -71,8 +89,13 @@ export class MapaPage implements AfterViewInit {
     window.addEventListener('resize', this.onResize, { passive: true });
     this.loadCallesLayer();
     this.loadRutasLayer();
+    this.loadVehicles();
     // Cargar rol y luego iniciar observación para clientes
     this.loadUserRole().then(() => this.watchActiveRecorridosForClients());
+  }
+
+  goHome() {
+    try { this.navCtrl.navigateRoot('/tabs/home'); } catch {}
   }
 
   // Encuentra el índice del punto más cercano en una polilínea
@@ -378,6 +401,65 @@ export class MapaPage implements AfterViewInit {
     else this.clearSelectedRuta();
   }
 
+  // Seleccionar ruta desde lista/accordion
+  selectRuta(id: string) {
+    if (!id) return;
+    this.selectedRutaId.set(id);
+    this.highlightSelectedRuta(id);
+  }
+
+  // Seleccionar vehículo desde la lista
+  selectVehiculo(id: string) {
+    if (!id) return;
+    this.selectedVehiculoId.set(id);
+  }
+
+  // Obtener nombre de la ruta seleccionada (para mostrar en la fila táctil)
+  get selectedRutaNombre(): string {
+    const id = this.selectedRutaId();
+    if (!id) return '';
+    const r = (this.rutas() || []).find(x => x.id === id) as any;
+    return r?.nombre || r?.nombre_ruta || '';
+  }
+
+  // Abrir selector confiable en móvil usando AlertController con radios
+  async openRoutePicker() {
+    try {
+      const list = this.rutas() || [];
+      if (!list.length) {
+        const a = await this.alertCtrl.create({
+          header: 'Rutas',
+          message: 'No hay rutas disponibles',
+          buttons: ['OK']
+        });
+        await a.present();
+        return;
+      }
+      const current = this.selectedRutaId();
+      const alert = await this.alertCtrl.create({
+        header: 'Selecciona una ruta',
+        inputs: list.map((r: any) => ({
+          type: 'radio',
+          label: r?.nombre || r?.nombre_ruta || r?.id,
+          value: r.id,
+          checked: r.id === current
+        })),
+        buttons: [
+          { text: 'Cancelar', role: 'cancel' },
+          { text: 'Aceptar', role: 'confirm' }
+        ]
+      });
+      await alert.present();
+      const res = await alert.onDidDismiss();
+      if (res.role !== 'confirm') return;
+      const val = (res.data as any)?.values ?? (res.data as any)?.value;
+      if (val) {
+        this.selectedRutaId.set(val);
+        this.highlightSelectedRuta(val);
+      }
+    } catch {}
+  }
+
   private clearSelectedRuta() {
     if (!this.map) return;
     if (this.selectedRutaLayer) {
@@ -669,14 +751,21 @@ export class MapaPage implements AfterViewInit {
 
   private initMap(): void {
     // Create map
-    this.map = L.map('mapa-map').setView([3.8833, -77.0167], 12);
+    const buenaventuraBounds = L.latLngBounds(
+      L.latLng(3.80, -77.10), // Suroeste
+      L.latLng(3.95, -76.95)  // Noreste
+    );
+    this.map = L.map('mapa-map', {
+      maxBounds: buenaventuraBounds,
+      maxBoundsViscosity: 1.0
+    }).setView([3.8833, -77.0167], 12);
 
     // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+      minZoom: 10
     }).addTo(this.map);
-
- 
 
     // Prepare vehicle icon
     try {
@@ -765,6 +854,25 @@ export class MapaPage implements AfterViewInit {
       if (this.userRole() === 'conductor') this.realTracking.set(true);
     } catch {
       this.userRole.set('cliente');
+    }
+  }
+
+  // Cargar vehículos para el acordeón de selección
+  private async loadVehicles() {
+    try {
+      const vs = await this.api.getVehiculos();
+      if (Array.isArray(vs)) {
+        this.vehicles.set(vs as any);
+        // Autoseleccionar el primero disponible si no hay selección
+        if (!this.selectedVehiculoId()) {
+          const avail = this.availableVehicles();
+          if (avail.length > 0) {
+            this.selectedVehiculoId.set(avail[0].id);
+          }
+        }
+      }
+    } catch {
+      // no-op
     }
   }
 
@@ -1023,62 +1131,39 @@ export class MapaPage implements AfterViewInit {
     }
   }
 
-  async createExampleRuta() {
-    // Coordenadas simples alrededor del centro de Buenaventura
-    const coords: [number, number][] = [
-      [-77.0167, 3.8833],
-      [-77.0125, 3.8860],
-      [-77.0080, 3.8885]
-    ];
-    const shape: GeoJSON.LineString = { type: 'LineString', coordinates: coords } as any;
-    // Tomar algunas calles existentes para cumplir con la validación del backend
-    const calles = this.mapData.calles();
-    if (!calles || calles.length === 0) {
-      console.warn('[MapaPage] No hay calles cargadas; intentando crear ruta sin calles podría fallar.');
-    }
-    const callesIds = (calles || []).slice(0, 5).map(c => c.id);
-    console.log('[MapaPage] Creando ruta de ejemplo...');
-    const created = await this.mapData.createRuta({
-      nombre: 'Ruta Ejemplo Buenaventura',
-      descripcion: 'Creada desde la app para pruebas',
-      shape,
-      callesIds
-    });
-    if (created) {
-      console.log('[MapaPage] Ruta creada con id:', created.id);
-      await this.loadRutasLayer();
-      this.selectedRutaId.set(created.id);
-    }
-  }
+  
 
   async onStartRecorrido() {
     if (this.userRole() !== 'conductor') return;
     const rutaId = this.selectedRutaId();
     if (!rutaId) return;
     // Seleccionar vehículo requerido por la API externa
-    let vehiculoId: string | null = null;
+    let vehiculoId: string | null = this.selectedVehiculoId();
     try {
-      const vehiculos = await this.api.getVehiculos();
+      const vehiculos = this.vehicles();
       if (Array.isArray(vehiculos) && vehiculos.length > 0) {
-        const first = vehiculos[0];
-        const alert = await this.alertCtrl.create({
-          header: 'Selecciona tu vehículo',
-          inputs: vehiculos.map((v: Vehiculo) => ({
-            name: 'veh',
-            type: 'radio',
-            label: `${v.placa}${v.modelo ? ' · ' + v.modelo : ''}`,
-            value: v.id,
-            checked: v.id === first.id
-          })),
-          buttons: [
-            { text: 'Cancelar', role: 'cancel' },
-            { text: 'Aceptar', role: 'confirm' }
-          ]
-        });
-        await alert.present();
-        const res = await alert.onDidDismiss();
-        if (res.role !== 'confirm') return;
-        vehiculoId = (res.data as any)?.values ?? (res.data as any)?.value ?? first.id;
+        if (!vehiculoId) {
+          const first = vehiculos[0];
+          const alert = await this.alertCtrl.create({
+            header: 'Selecciona tu vehículo',
+            inputs: vehiculos.map((v: Vehiculo) => ({
+              name: 'veh',
+              type: 'radio',
+              label: `${v.placa}${v.modelo ? ' · ' + v.modelo : ''}`,
+              value: v.id,
+              checked: v.id === first.id
+            })),
+            buttons: [
+              { text: 'Cancelar', role: 'cancel' },
+              { text: 'Aceptar', role: 'confirm' }
+            ]
+          });
+          await alert.present();
+          const res = await alert.onDidDismiss();
+          if (res.role !== 'confirm') return;
+          vehiculoId = (res.data as any)?.values ?? (res.data as any)?.value ?? first.id;
+          this.selectedVehiculoId.set(vehiculoId);
+        }
       }
     } catch {}
     const rec = await this.mapData.iniciarRecorrido(rutaId, vehiculoId || undefined);
@@ -1119,22 +1204,23 @@ export class MapaPage implements AfterViewInit {
       } else if (anyRunning?.id) {
         targetId = anyRunning.id;
       }
-      if (!targetId) return;
-      const ok = await this.mapData.finalizarRecorrido(targetId);
-      if (ok) {
-        // Confirm by reloading list
-        await this.mapData.loadRecorridos();
-        this.activeRecorrido.set(null);
-        if (this.posicionesTimer) clearInterval(this.posicionesTimer);
-        if (this.promoteTimer) clearInterval(this.promoteTimer);
-        if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
-        if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); this.simPolyline = null; }
-        if (this.simMarker && this.map) { (this.map as L.Map).removeLayer(this.simMarker); this.simMarker = null; }
-        if (this.watchId !== null) { navigator.geolocation?.clearWatch?.(this.watchId); this.watchId = null; }
-        // Limpiar posición persistida
-        try { this.clearLastConductorPos(); } catch {}
+      if (targetId) {
+        try { await this.mapData.finalizarRecorrido(targetId); } catch {}
       }
     } catch {}
+    // Hacer cleanup local SIEMPRE para asegurar que la UI se detenga
+    this.cleanupActiveRecorrido();
+  }
+
+  private cleanupActiveRecorrido() {
+    this.activeRecorrido.set(null);
+    if (this.posicionesTimer) { clearInterval(this.posicionesTimer); this.posicionesTimer = null; }
+    if (this.promoteTimer) { clearInterval(this.promoteTimer); this.promoteTimer = null; }
+    if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+    if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); this.simPolyline = null; }
+    if (this.simMarker && this.map) { (this.map as L.Map).removeLayer(this.simMarker); this.simMarker = null; }
+    if (this.watchId !== null) { navigator.geolocation?.clearWatch?.(this.watchId); this.watchId = null; }
+    try { this.clearLastConductorPos(); } catch {}
   }
 
   private beginPromoteLocalRecorrido(local: RecorridoApiItem) {

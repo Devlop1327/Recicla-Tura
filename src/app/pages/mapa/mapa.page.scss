@@ -2,15 +2,50 @@ ion-content {
   --padding-bottom: 0;
 }
 
+#mapa-map {}
+
+.back-chevron {
+  --background: transparent;
+  padding: 2px 6px;
+  min-width: 36px;
+  min-height: 36px;
+  position: relative;
+  z-index: 10; /* por encima de badges u otros elementos del toolbar */
+}
+.back-chevron ion-icon {
+  color: var(--ion-color-primary, #3880ff);
+  font-size: 24px;
+}
+
 #mapa-map {
-  height: min(65dvh, calc(100dvh - 280px - var(--ion-safe-area-bottom, 0px)));
+  height: min(70dvh, calc(100dvh - 240px - var(--ion-safe-area-bottom, 0px)));
   width: 100%;
 }
 
+/* Inline label + selector for Ruta, with graceful wrap on small widths */
+.route-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.route-row ion-note {
+  font-size: 0.98rem;
+  color: var(--ion-text-color, #222);
+}
+.route-row ion-select {
+  flex: 1 1 100%;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Very small phones */
 @media (max-width: 380px) {
   #mapa-map {
-    height: min(60dvh, calc(100dvh - 320px - var(--ion-safe-area-bottom, 0px)));
+    height: min(65dvh, calc(100dvh - 300px - var(--ion-safe-area-bottom, 0px)));
   }
+  .route-row { flex-wrap: wrap; }
+  .route-row ion-select { flex: 1 1 100%; min-width: 0; width: 100%; }
 }
 
 @media (min-width: 768px) {
@@ -21,10 +56,25 @@ ion-content {
 
 /* Mobile footer actions visibility and spacing */
 .mapa-actions { display: none; }
-.actions-inline { display: block; }
+.actions-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 
 @media (max-width: 480px) {
   .mapa-actions { display: block; }
-  .actions-inline { display: none !important; }
-  ion-content { --padding-bottom: calc(72px + var(--ion-safe-area-bottom, 0px)); }
+  /* Mantener visibles los controles en línea (incluye el toggle de Ubicación real) */
+  .actions-inline { display: flex; flex-wrap: wrap; gap: 6px; }
+  ion-content { --padding-bottom: calc(80px + var(--ion-safe-area-bottom, 0px)); }
+  ion-list[inset] { margin: 8px 8px; }
+  ion-item { --min-height: 40px; }
+  ion-select { width: 100%; }
+}
+
+/* Admin actions: 3 por fila, luego se apilan en filas siguientes */
+.admin-actions-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .admin-actions-grid { grid-template-columns: repeat(4, max-content); }
 }

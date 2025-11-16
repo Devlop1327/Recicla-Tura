@@ -85,7 +85,7 @@ ion-item {
   
   .action-buttons {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 8px;
     background: rgba(var(--ion-color-light-rgb), 0.5);
@@ -231,12 +231,25 @@ ion-badge {
       font-size: 1.2em;
     }
   }
-  
+
   form {
     ion-item {
       --padding-start: 0;
       --inner-padding-end: 0;
     }
+  }
+}
+
+/* Very small devices */
+@media (max-width: 420px) {
+  ion-item .action-buttons {
+    flex-direction: column;
+  }
+  ion-item ion-label {
+    margin: 8px 0;
+  }
+  ion-card {
+    margin: 8px;
   }
 }
 

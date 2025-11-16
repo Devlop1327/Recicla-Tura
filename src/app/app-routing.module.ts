@@ -6,8 +6,7 @@ import { roleMatchGuard } from './guards/role-match.guard';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: '/login',
-    pathMatch: 'full'
+    loadComponent: () => import('./pages/start/start.page').then(m => m.StartPage)
   },
   {
     path: 'login',
