@@ -6,33 +6,33 @@
         <ion-card>
           <ion-card-content>
             <ion-row class="profile-header" align-items-center>
-              <ion-col class="avatar-section" size="auto">
-                <ion-avatar class="profile-avatar">
+              <ion-col class="avatar-section ion-text-center" size="12">
+                <ion-text class="ion-text-center" style="display:block; font-weight:600;">{{ profile()?.full_name || 'Usuario' }}</ion-text>
+                <ion-avatar class="profile-avatar" style="margin:8px auto;">
                   @if (profile()?.avatar_url) {
                     <ion-img [src]="profile()!.avatar_url" alt="Avatar"></ion-img>
                   } @else {
                     <ion-icon name="person" size="large"></ion-icon>
                   }
                 </ion-avatar>
-                <ion-row class="avatar-upload ion-margin-top">
-                  <ion-col size="12">
-                    <ion-button size="small" (click)="uploadAvatar()" [disabled]="isLoading()">
-                      Subir Avatar
-                    </ion-button>
-                  </ion-col>
-                </ion-row>
-              </ion-col>
-              <ion-col class="avatar-info">
-                <ion-text>{{ profile()?.full_name || 'Usuario' }}</ion-text>
-                <ion-text color="medium">{{ profile()?.email }}</ion-text>
-                <ion-badge color="primary">Activo</ion-badge>
+                <app-avatar-uploader
+                  (fileSelected)="selectedFile = $event"
+                  (upload)="uploadAvatar()">
+                </app-avatar-uploader>
+                <ion-text color="medium" class="ion-text-center" style="display:block; margin-top:6px;">{{ profile()?.email }}</ion-text>
+                <ion-badge color="primary" style="margin-top:6px;">Activo</ion-badge>
+
+                @if (!isEditing()) {
+                  <ion-row class="ion-justify-content-center ion-margin-top">
+                    <ion-col size="12" class="ion-text-center">
+                      <ion-button size="small" color="primary" (click)="toggleEdit()">Editar info</ion-button>
+                    </ion-col>
+                  </ion-row>
+                }
               </ion-col>
               <ion-col class="header-actions" size="auto">
-                <ion-button 
-                  fill="clear" 
-                  size="small" 
-                  (click)="toggleEdit()">
-                  <ion-icon name="create" slot="icon-only"></ion-icon>
+                <ion-button fill="outline" size="small" color="medium" (click)="openPwdModal()">
+                  Cambiar contraseña
                 </ion-button>
               </ion-col>
             </ion-row>
@@ -61,11 +61,7 @@
               <ion-item>
                 <ion-label position="stacked">Nombre Completo</ion-label>
                 @if (isEditing()) {
-                  <ion-input 
-                    [value]="fullName()" 
-                    (ionInput)="fullName.set($event.detail.value!)"
-                    placeholder="Tu nombre completo">
-                  </ion-input>
+                  <ion-input [value]="fullName()" (ionInput)="fullName.set($event.detail.value!)" placeholder="Tu nombre completo"></ion-input>
                 } @else {
                   <ion-text>{{ profile()?.full_name || 'No especificado' }}</ion-text>
                 }
@@ -74,12 +70,7 @@
               <ion-item>
                 <ion-label position="stacked">Teléfono</ion-label>
                 @if (isEditing()) {
-                  <ion-input 
-                    type="tel"
-                    [value]="phone()" 
-                    (ionInput)="phone.set($event.detail.value!)"
-                    placeholder="Tu número de teléfono">
-                  </ion-input>
+                  <ion-input type="tel" [value]="phone()" (ionInput)="phone.set($event.detail.value!)" placeholder="Tu número de teléfono"></ion-input>
                 } @else {
                   <ion-text>{{ profile()?.phone || 'No especificado' }}</ion-text>
                 }
@@ -88,12 +79,7 @@
               <ion-item>
                 <ion-label position="stacked">Dirección</ion-label>
                 @if (isEditing()) {
-                  <ion-textarea 
-                    [value]="address()" 
-                    (ionInput)="address.set($event.detail.value!)"
-                    placeholder="Tu dirección en Buenaventura"
-                    rows="3">
-                  </ion-textarea>
+                  <ion-textarea [value]="address()" (ionInput)="address.set($event.detail.value!)" placeholder="Tu dirección en Buenaventura" rows="3"></ion-textarea>
                 } @else {
                   <ion-text>{{ profile()?.address || 'No especificada' }}</ion-text>
                 }
@@ -115,17 +101,8 @@
             @if (isEditing()) {
               <ion-row class="form-actions">
                 <ion-col size="12">
-                  <ion-button 
-                    fill="outline" 
-                    color="medium" 
-                    (click)="toggleEdit()">
-                    Cancelar
-                  </ion-button>
-                  <ion-button 
-                    color="primary" 
-                    (click)="saveProfile()">
-                    Guardar
-                  </ion-button>
+                  <ion-button fill="outline" color="medium" (click)="toggleEdit()">Cancelar</ion-button>
+                  <ion-button color="primary" (click)="saveProfile()">Guardar</ion-button>
                 </ion-col>
               </ion-row>
             }
@@ -194,4 +171,31 @@
     </ion-row>
   </ion-grid>
 </ion-content>
+
+<!-- Modal Cambiar contraseña -->
+<ion-modal [isOpen]="pwdModal()" (didDismiss)="closePwdModal()">
+  <ng-template>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Cambiar contraseña</ion-title>
+        <ion-buttons slot="end">
+          <ion-button (click)="closePwdModal()">Cerrar</ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content class="ion-padding">
+      <ion-list>
+        <ion-item>
+          <ion-label position="stacked">Nueva contraseña</ion-label>
+          <ion-input type="password" [value]="pwdNew()" (ionInput)="pwdNew.set($event.detail.value!)" placeholder="Mínimo 6 caracteres"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">Confirmar contraseña</ion-label>
+          <ion-input type="password" [value]="pwdConfirm()" (ionInput)="pwdConfirm.set($event.detail.value!)" placeholder="Repite la contraseña"></ion-input>
+        </ion-item>
+      </ion-list>
+      <ion-button expand="block" color="primary" (click)="changePassword()">Guardar contraseña</ion-button>
+    </ion-content>
+  </ng-template>
+</ion-modal>
 

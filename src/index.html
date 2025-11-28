@@ -13,14 +13,14 @@
     />
     <meta name="format-detection" content="telephone=no" />
     <meta name="msapplication-tap-highlight" content="no" />
-    <!-- CSP for development: allow Ionic dev server, Supabase, and map tiles -->
+    <!-- CSP compatible con Capacitor/Ionic en dispositivo -->
     <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
-      connect-src 'self' http://localhost:8100 ws://localhost:8100 https://*.supabase.co wss://*.supabase.co https://*.supabase.in wss://*.supabase.in https://api.openstreetmap.org https://*.tile.openstreetmap.org http://apirecoleccion.gonzaloandreslucio.com;
-      img-src 'self' data: blob: https://*;
-      style-src 'self' 'unsafe-inline' https://*;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval';
-      font-src 'self' data: https://*;
+      default-src 'self' data: blob: capacitor: http://localhost:8100;
+      connect-src 'self' data: blob: file: ws: wss: http: https: http://localhost:8100 ws://localhost:8100 https://*.supabase.co wss://*.supabase.co https://*.supabase.in wss://*.supabase.in https://api.openstreetmap.org https://*.tile.openstreetmap.org https://apirecoleccion.gonzaloandreslucio.com;
+      img-src 'self' data: blob: https: https://*.tile.openstreetmap.org https://api.openstreetmap.org;
+      style-src 'self' 'unsafe-inline' https:;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' capacitor: http://localhost:8100;
+      font-src 'self' data: https:;
       media-src 'self' blob: data:;
       object-src 'none';
     " />

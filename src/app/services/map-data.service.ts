@@ -573,6 +573,12 @@ export class MapDataService {
 
   async registrarPosicion(recorridoId: string, lat: number, lng: number, velocidad?: number) {
     try {
+      console.log('[MapDataService] registrarPosicion -> intentando enviar a API', {
+        recorridoId,
+        lat,
+        lng,
+        velocidad
+      });
       await firstValueFrom(
         this.http.post(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
           lat,
@@ -581,8 +587,10 @@ export class MapDataService {
           velocidad
         })
       );
+      console.log('[MapDataService] registrarPosicion -> OK');
       return true;
-    } catch {
+    } catch (e) {
+      console.error('[MapDataService] registrarPosicion error', e);
       return false;
     }
   }

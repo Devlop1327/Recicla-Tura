@@ -24,9 +24,9 @@
     <ion-item button (click)="navigateTo('notifications')">
       <ion-icon slot="start" name="notifications-outline"></ion-icon>
       <ion-label>Notificaciones</ion-label>
-      <ion-badge slot="end" color="danger" *ngIf="unreadNotifications > 0">
-        {{ unreadNotifications }}
-      </ion-badge>
+      @if (unreadNotifications > 0) {
+              <ion-badge slot="end" color="danger">{{ unreadNotifications }}</ion-badge>
+            }
     </ion-item>
 
     <ion-item button (click)="navigateTo('profile')">

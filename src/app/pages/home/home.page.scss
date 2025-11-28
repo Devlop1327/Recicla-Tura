@@ -4,6 +4,13 @@
   min-height: 100vh;
 }
 
+/* Ensure app logo displays correctly on mobile */
+.app-logo {
+  width: 64px;
+  height: auto;
+  display: block;
+}
+ 
 .header-section {
   margin-bottom: 16px;
 
@@ -16,6 +23,12 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .logo-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .route-info {
@@ -45,26 +58,7 @@
     }
   }
 
-  .api-error {
-    margin-top: 8px;
-    text-align: center;
-    
-    small {
-      font-size: 0.75rem;
-    }
-  }
-
-  .api-info {
-    margin-top: 8px;
-    text-align: center;
-    padding: 4px 8px;
-    background: var(--ion-color-light-shade);
-    border-radius: 8px;
-    
-    small {
-      font-size: 0.75rem;
-    }
-  }
+  /* API indicators removidos */
 }
 
 .map-section {
@@ -126,14 +120,15 @@
   }
 
   .vehicles-list {
+    padding: 0;
     .vehicle-item {
-      --padding-start: 16px;
-      --padding-end: 16px;
-      --padding-top: 12px;
-      --padding-bottom: 12px;
-      margin-bottom: 8px;
-      border-radius: 12px;
-      border: 1px solid var(--ion-color-light);
+      --padding-start: 12px;
+      --padding-end: 12px;
+      --padding-top: 8px;
+      --padding-bottom: 8px;
+      margin-bottom: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--ion-color-light-shade);
 
       ion-avatar {
         --size: 40px;
@@ -162,27 +157,24 @@
       }
 
       .vehicle-status {
-        text-align: right;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
 
         .location-info {
-          p {
-            margin: 2px 0;
-            font-size: 0.8rem;
-            color: var(--ion-color-medium);
-          }
-
-          .timestamp {
-            font-weight: 500;
-          }
-
-          .speed {
-            color: var(--ion-color-success);
-          }
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 0.8rem;
+          color: var(--ion-color-medium);
+          .timestamp { font-weight: 500; }
+          .speed { color: var(--ion-color-success); }
         }
 
         ion-badge {
           font-size: 0.7rem;
-          margin-top: 4px;
+          margin-top: 0;
         }
       }
     }

@@ -1,0 +1,111 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button autoHide="false" menu="admin-menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>
+      Usuarios
+      @if (!loading()) {
+        <ion-badge color="primary" class="ion-margin-start">{{ total() }} total</ion-badge>
+      }
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="goTo('/admin/dashboard')" color="tertiary">
+        <ion-icon slot="start" name="home"></ion-icon>
+        Dashboard
+      </ion-button>
+      <ion-button (click)="createUser()" color="primary">
+        <ion-icon slot="start" name="person-add"></ion-icon>
+        Crear
+      </ion-button>
+      <ion-button (click)="invite()" color="medium">
+        <ion-icon slot="start" name="person-add-outline"></ion-icon>
+        Invitar
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+<ion-content>
+  <ion-searchbar placeholder="Buscar por email, nombre o teléfono" (ionInput)="onSearch($event)" [debounce]="300"></ion-searchbar>
+  <ion-segment [value]="filterRole()" (ionChange)="onFilterRoleChange($event)">
+    <ion-segment-button value="all">Todos</ion-segment-button>
+    <ion-segment-button value="admin">Admin</ion-segment-button>
+    <ion-segment-button value="conductor">Conductor</ion-segment-button>
+    <ion-segment-button value="cliente">Cliente</ion-segment-button>
+  </ion-segment>
+
+  @if (loading()) {
+    <ion-list inset>
+      @for (i of [0,1,2,3,4]; track i) {
+        <ion-item>
+          <ion-avatar slot="start">
+            <ion-skeleton-text animated style="width:32px; height:32px; border-radius:50%"></ion-skeleton-text>
+          </ion-avatar>
+          <ion-label>
+            <ion-text><ion-skeleton-text animated style="width: 160px"></ion-skeleton-text></ion-text>
+            <ion-text color="medium"><ion-skeleton-text animated style="width: 120px"></ion-skeleton-text></ion-text>
+          </ion-label>
+        </ion-item>
+      }
+    </ion-list>
+  } @else {
+  <ion-list inset>
+    @for (u of displayedUsers(); track u.id) {
+      <ion-item-sliding>
+        <ion-item>
+          <ion-avatar slot="start">
+            <ion-icon name="person-circle-outline" style="font-size:32px"></ion-icon>
+          </ion-avatar>
+          <ion-label>
+            <ion-text>{{ u.full_name || u.email }}</ion-text>
+            <ion-text color="medium">{{ u.email }}</ion-text>
+            <ion-badge [color]="roleBadgeColor(u)">{{ u.role || u.rol || 'cliente' }}</ion-badge>
+          </ion-label>
+          <ion-buttons slot="end">
+            <ion-button fill="clear" color="medium" (click)="changeRole(u)">
+              <ion-icon name="shield-half-outline"></ion-icon>
+            </ion-button>
+            <ion-button fill="clear" color="danger" (click)="confirmDelete(u)">
+              <ion-icon name="trash-outline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-item>
+        <ion-item-options side="start">
+          <ion-item-option color="medium" (click)="changeRole(u)">
+            <ion-icon slot="start" name="shield-half-outline"></ion-icon>
+            Rol
+          </ion-item-option>
+        </ion-item-options>
+        <ion-item-options side="end">
+          <ion-item-option color="danger" (click)="confirmDelete(u)">
+            <ion-icon slot="start" name="trash-outline"></ion-icon>
+            Eliminar
+          </ion-item-option>
+        </ion-item-options>
+      </ion-item-sliding>
+    }
+    @if (!loading() && users().length === 0) {
+      <ion-item lines="none"><ion-label>No hay usuarios</ion-label></ion-item>
+    }
+  </ion-list>
+  }
+  <ion-infinite-scroll threshold="100px" (ionInfinite)="loadMore($event)" [disabled]="disableMore()">
+    <ion-infinite-scroll-content loadingSpinner="bubbles" loadingText="Cargando más..."></ion-infinite-scroll-content>
+  </ion-infinite-scroll>
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button color="primary" (click)="createUser()" aria-label="Crear usuario">
+      <ion-icon name="person-add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>
+<ion-footer>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button [disabled]="page() === 1" (click)="prevPage()">Anterior</ion-button>
+    </ion-buttons>
+    <ion-title size="small">Página {{ page() }} · {{ total() }} usuarios</ion-title>
+    <ion-buttons slot="end">
+      <ion-button [disabled]="page() >= maxPage()" (click)="nextPage()">Siguiente</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-footer>

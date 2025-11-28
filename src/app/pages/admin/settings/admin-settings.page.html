@@ -1,0 +1,45 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button autoHide="false"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Configuración</ion-title>
+  </ion-toolbar>
+</ion-header>
+<ion-content>
+  <ion-list inset>
+    <ion-item lines="full">
+      <ion-label>Ajustes del administrador</ion-label>
+    </ion-item>
+
+    <ion-item>
+      <ion-label>Soporte de recorridos</ion-label>
+      <ion-toggle [checked]="supportsRecorridos()" (ionChange)="supportsRecorridos.set($event.detail.checked)"></ion-toggle>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Latitud mapa</ion-label>
+      <ion-input type="number" [value]="mapLat()" (ionInput)="mapLat.set(+($any($event.detail).value))"></ion-input>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Longitud mapa</ion-label>
+      <ion-input type="number" [value]="mapLng()" (ionInput)="mapLng.set(+($any($event.detail).value))"></ion-input>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Zoom mapa</ion-label>
+      <ion-input type="number" [value]="mapZoom()" (ionInput)="mapZoom.set(+($any($event.detail).value))"></ion-input>
+    </ion-item>
+
+    <ion-item lines="none">
+      <ion-buttons slot="end">
+        <ion-button color="medium" (click)="clearLocalCache()">Limpiar caché</ion-button>
+        <ion-button color="tertiary" (click)="reloadRole()">Recargar rol</ion-button>
+        <ion-button color="primary" [disabled]="saving()" (click)="saveAppSettings()">
+          @if (saving()) { Guardando... } @else { Guardar }
+        </ion-button>
+      </ion-buttons>
+    </ion-item>
+  </ion-list>
+</ion-content>

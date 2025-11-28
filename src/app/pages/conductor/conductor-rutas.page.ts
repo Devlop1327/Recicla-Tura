@@ -1,5 +1,5 @@
 import { Component, signal, computed } from '@angular/core';
-import { IonicModule, AlertController } from '@ionic/angular';
+import { IonicModule, AlertController, MenuController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { RecorridosService } from '../../services/recorridos.service';
@@ -22,7 +22,8 @@ export class ConductorRutasPage {
     private recorridos: RecorridosService,
     private router: Router,
     private api: ApiService,
-    private alertCtrl: AlertController
+    private alertCtrl: AlertController,
+    private menuCtrl: MenuController
   ) {}
 
   async ionViewWillEnter() {
@@ -36,6 +37,14 @@ export class ConductorRutasPage {
       this.vehiculos.set(Array.isArray(vs) ? vs : []);
     } finally {
       this.isLoading.set(false);
+    }
+  }
+
+  async go(path: string) {
+    try {
+      await this.router.navigateByUrl(path);
+    } finally {
+      try { await this.menuCtrl.close('conductorMenu'); } catch {}
     }
   }
 
@@ -65,8 +74,12 @@ export class ConductorRutasPage {
       if (res.role !== 'confirm') return;
       selected = (res.data as any)?.values ?? (res.data as any)?.value ?? selected;
     }
-    await this.recorridos.startRecorrido(rutaId, selected || undefined);
-    await this.router.navigateByUrl('/conductor/recorrido');
+    await this.router.navigate(['/mapa'], {
+      queryParams: {
+        ruta: rutaId,
+        vehiculo: selected || undefined
+      }
+    });
   }
 
   async onRefresh(ev: CustomEvent) {

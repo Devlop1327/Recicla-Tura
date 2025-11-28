@@ -1,0 +1,61 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button autoHide="false" menu="admin-menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Rutas</ion-title>
+    <ion-buttons slot="end">
+      <ion-button routerLink="/admin/dashboard" routerDirection="root" color="tertiary">
+        <ion-icon slot="start" name="home"></ion-icon>
+        Dashboard
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="onRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+  <ion-list inset>
+    @for (r of rutas(); track r.id) {
+      <ion-item-sliding>
+        <ion-item>
+          <ion-label>
+            <ion-text>{{ r.nombre || r.nombre_ruta }}</ion-text>
+            <ion-text color="medium">{{ r.descripcion || r.descripcion_ruta }}</ion-text>
+          </ion-label>
+          <ion-buttons slot="end">
+            <ion-button fill="clear" color="medium" (click)="edit(r)" aria-label="Editar">
+              <ion-icon name="create-outline"></ion-icon>
+            </ion-button>
+            <ion-button fill="clear" color="danger" (click)="confirmDelete(r)" aria-label="Eliminar">
+              <ion-icon name="trash-outline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-item>
+        <ion-item-options side="start">
+          <ion-item-option color="medium" (click)="edit(r)">
+            <ion-icon slot="start" name="create-outline"></ion-icon>
+            Editar
+          </ion-item-option>
+        </ion-item-options>
+        <ion-item-options side="end">
+          <ion-item-option color="danger" (click)="confirmDelete(r)">
+            <ion-icon slot="start" name="trash-outline"></ion-icon>
+            Eliminar
+          </ion-item-option>
+        </ion-item-options>
+      </ion-item-sliding>
+    }
+    @if ((rutas() || []).length === 0) {
+      <ion-item lines="none">
+        <ion-label>No hay rutas</ion-label>
+      </ion-item>
+    }
+  </ion-list>
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button color="primary" (click)="create()" aria-label="Nueva ruta">
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

@@ -8,8 +8,20 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content fullscreen="true">
+<ion-content>
   <ion-list inset="true">
+    <ion-item>
+      <ion-label>Vista</ion-label>
+      <ion-segment slot="end" [value]="baseLayer()" (ionChange)="onBaseLayerChange($event)">
+        <ion-segment-button value="map">
+          <ion-label>Mapa</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="sat">
+          <ion-label>Satélite</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+    </ion-item>
+    @if (userRole() !== 'cliente') {
     <ion-item>
       <ion-label>Calles</ion-label>
       <ion-toggle slot="end" [checked]="showCalles()" (ionChange)="onToggleCalles($event)"></ion-toggle>
@@ -18,6 +30,7 @@
       <ion-label>Rutas</ion-label>
       <ion-toggle slot="end" [checked]="showRutas()" (ionChange)="onToggleRutas($event)"></ion-toggle>
     </ion-item>
+    }
     @if (userRole() !== 'cliente') {
       <ion-item class="route-row" button detail (click)="openRoutePicker()">
         <ion-label>Ruta</ion-label>
@@ -60,6 +73,29 @@
     </ion-list>
   }
   <ion-card id="mapa-map"></ion-card>
+
+  @if (userRole() === 'cliente') {
+    <ion-list inset="true">
+      <ion-item lines="full">
+        <ion-label>Rutas en curso</ion-label>
+        <ion-note slot="end">{{ activeClientRecs().length || 0 }} en seguimiento</ion-note>
+      </ion-item>
+      @if (!activeClientRecs().length) {
+        <ion-item lines="none">
+          <ion-label color="medium">No hay rutas en curso por ahora</ion-label>
+        </ion-item>
+      } @else {
+        @for (rec of activeClientRecs(); track rec.id) {
+          <ion-item button (click)="onFocusRecorrido(rec)">
+            <ion-label>
+              {{ getRutaNombre(rec?.ruta_id) }}
+            </ion-label>
+            <ion-badge color="success" slot="end">En curso</ion-badge>
+          </ion-item>
+        }
+      }
+    </ion-list>
+  }
 
   @if (userRole() !== 'cliente') {
     <ion-list inset="true">

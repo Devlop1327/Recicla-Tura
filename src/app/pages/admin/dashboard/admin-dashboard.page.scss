@@ -1,0 +1,20 @@
+.veh-item {
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --inner-padding-end: 12px;
+  --min-height: 64px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--ion-color-light-shade);
+}
+.veh-top { margin-bottom: 4px; }
+.veh-placa { font-weight: 700; letter-spacing: 0.5px; }
+.veh-modelo { font-size: 0.9rem; color: var(--ion-color-medium); }
+.veh-marca { font-size: 0.9rem; color: var(--ion-color-medium); margin-bottom: 6px; }
+.veh-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.veh-info { display: flex; flex-direction: column; }
+.veh-badge { margin-left: 8px; white-space: nowrap; }
+@media (min-width: 768px) {
+  .veh-item { margin-bottom: 10px; }
+  .veh-badge { margin-left: 12px; }
+}

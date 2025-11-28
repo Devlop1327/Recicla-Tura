@@ -10,13 +10,17 @@ import { SupabaseService } from '../../services/supabase.service';
   imports: [IonicModule, CommonModule],
   template: `
     <ion-content fullscreen>
-      <div class="start-center">
-        <ion-spinner name="crescent"></ion-spinner>
-      </div>
+      <ion-grid class="start-center">
+        <ion-row class="ion-justify-content-center ion-align-items-center" style="height: 100%">
+          <ion-col size="12" class="ion-text-center">
+            <ion-spinner name="crescent"></ion-spinner>
+          </ion-col>
+        </ion-row>
+      </ion-grid>
     </ion-content>
   `,
   styles: [`
-    .start-center { display: grid; place-items: center; height: 100%; }
+    .start-center { height: 100%; }
   `]
 })
 export class StartPage implements OnInit {

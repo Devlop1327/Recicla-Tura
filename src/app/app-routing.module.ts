@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { LoginPage } from './pages/login/login.page';
 import { AuthGuard } from './guards/auth.guard';
 import { roleGuard } from './guards/role.guard';
 import { roleMatchGuard } from './guards/role-match.guard';
@@ -6,11 +7,12 @@ import { roleMatchGuard } from './guards/role-match.guard';
 export const routes: Routes = [
   {
     path: '',
-    loadComponent: () => import('./pages/start/start.page').then(m => m.StartPage)
+    redirectTo: 'login',
+    pathMatch: 'full'
   },
   {
     path: 'login',
-    loadComponent: () => import('./pages/login/login.page').then(m => m.LoginPage)
+    component: LoginPage
   },
   {
     path: 'recover',
@@ -58,7 +60,7 @@ export const routes: Routes = [
   },
   {
     path: 'admin',
-    loadComponent: () => import('./pages/admin/admin.page').then(m => m.AdminPage),
+    loadComponent: () => import('./pages/admin/shell/admin.page').then(m => m.AdminPage),
     canMatch: [roleMatchGuard],
     data: { roles: ['admin'] },
     children: [
@@ -69,23 +71,23 @@ export const routes: Routes = [
       },
       {
         path: 'dashboard',
-        loadComponent: () => import('./pages/admin/admin-dashboard.page').then(m => m.AdminDashboardPage)
+        loadComponent: () => import('./pages/admin/dashboard/admin-dashboard.page').then(m => m.AdminDashboardPage)
       },
       {
         path: 'users',
-        loadComponent: () => import('./pages/admin/admin-users.page').then(m => m.AdminUsersPage)
+        loadComponent: () => import('./pages/admin/users/admin-users.page').then(m => m.AdminUsersPage)
       },
       {
         path: 'routes',
-        loadComponent: () => import('./pages/admin/admin-routes.page').then(m => m.AdminRoutesPage)
+        loadComponent: () => import('./pages/admin/routes/admin-routes.page').then(m => m.AdminRoutesPage)
       },
       {
         path: 'vehicles',
-        loadComponent: () => import('./pages/admin/admin-vehicles.page').then(m => m.AdminVehiclesPage)
+        loadComponent: () => import('./pages/admin/vehicles/admin-vehicles.page').then(m => m.AdminVehiclesPage)
       },
       {
         path: 'settings',
-        loadComponent: () => import('./pages/admin/admin-settings.page').then(m => m.AdminSettingsPage)
+        loadComponent: () => import('./pages/admin/settings/admin-settings.page').then(m => m.AdminSettingsPage)
       }
     ]
   },
@@ -100,4 +102,3 @@ export const routes: Routes = [
     redirectTo: '/login'
   }
 ];
-

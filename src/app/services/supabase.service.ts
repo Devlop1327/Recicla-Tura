@@ -14,7 +14,7 @@ export class SupabaseService {
   private getUserInFlight: Promise<User | null> | null = null;
   private cachedUser: User | null = null;
   private cachedUserAt = 0; // epoch ms
-  private readonly userTtlMs = 5000; // cache 5s para reducir lock churn
+  private readonly userTtlMs = 30000; // cache 5s para reducir lock churn
 
   constructor() {
     this.supabase = createClient(
@@ -231,6 +231,41 @@ export class SupabaseService {
       .select('*');
     
     return { data, error };
+  }
+
+  // Crear ruta con GeoJSON (admin)
+  async createRutaGeoJson(payload: { nombre_ruta: string; perfil_id: string; shape: any; descripcion?: string | null; activa?: boolean }) {
+    try {
+      const row: any = {
+        nombre: payload.nombre_ruta,
+        perfil_id: payload.perfil_id,
+        // almacenar GeoJSON como string si la columna es de tipo text; si es jsonb también funciona enviando el objeto
+        shape: typeof payload.shape === 'string' ? payload.shape : JSON.stringify(payload.shape),
+      };
+      if (payload.descripcion !== undefined) row.descripcion = payload.descripcion;
+      if (payload.activa !== undefined) row.activa = payload.activa;
+
+      const { data, error } = await this.supabase
+        .from('rutas')
+        .insert(row)
+        .select('*')
+        .single();
+      return { data, error } as any;
+    } catch (error) {
+      return { data: null, error } as any;
+    }
+  }
+
+  // Obtener vehículos (fallback cuando API externa no responde en móvil)
+  async getVehiculos() {
+    try {
+      const { data, error } = await this.supabase
+        .from('vehiculos')
+        .select('*');
+      return { data: data || [], error } as any;
+    } catch (error) {
+      return { data: [], error } as any;
+    }
   }
 
   // Eliminar ruta por id

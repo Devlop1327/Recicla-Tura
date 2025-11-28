@@ -6,18 +6,24 @@
   </ion-header>
   <ion-content>
     <ion-list inset>
-      <ion-item routerLink="/home" routerDirection="root" detail>
-        <ion-icon name="home" slot="start"></ion-icon>
-        <ion-label>Inicio</ion-label>
-      </ion-item>
-      <ion-item routerLink="/conductor/rutas" routerDirection="root" detail>
-        <ion-icon name="map" slot="start"></ion-icon>
-        <ion-label>Rutas asignadas</ion-label>
-      </ion-item>
-      <ion-item routerLink="/conductor/recorrido" detail>
-        <ion-icon name="navigate" slot="start"></ion-icon>
-        <ion-label>Iniciar recorrido</ion-label>
-      </ion-item>
+      <ion-menu-toggle autoHide="true">
+        <ion-item button (click)="go('/tabs/home')" detail>
+          <ion-icon name="home" slot="start"></ion-icon>
+          <ion-label>Inicio</ion-label>
+        </ion-item>
+      </ion-menu-toggle>
+      <ion-menu-toggle autoHide="true">
+        <ion-item button (click)="go('/conductor/rutas')" detail>
+          <ion-icon name="map" slot="start"></ion-icon>
+          <ion-label>Rutas asignadas</ion-label>
+        </ion-item>
+      </ion-menu-toggle>
+      <ion-menu-toggle autoHide="true">
+        <ion-item button (click)="go('/conductor/recorrido')" detail>
+          <ion-icon name="navigate" slot="start"></ion-icon>
+          <ion-label>Iniciar recorrido</ion-label>
+        </ion-item>
+      </ion-menu-toggle>
     </ion-list>
   </ion-content>
 </ion-menu>
@@ -62,8 +68,7 @@
       @for (r of rutas(); track r.id) {
         <ion-item button detail (click)="seleccionar(r.id)">
           <ion-label>
-            <h2>{{ r.nombre }}</h2>
-            <p>Toque para iniciar recorrido</p>
+            <ion-text>{{ r.nombre }}</ion-text>
           </ion-label>
           <ion-icon name="chevron-forward" slot="end"></ion-icon>
         </ion-item>

@@ -69,6 +69,10 @@ export class TabsPage implements OnInit {
     this.setupMenu();
   }
 
+  role(): 'admin' | 'conductor' | 'cliente' | null {
+    return this.supabaseService.currentRole?.() ?? null;
+  }
+
   private checkScreenSize() {
     // Verificar si estamos en un dispositivo móvil o escritorio
     this.isDesktop = window.innerWidth > 768;

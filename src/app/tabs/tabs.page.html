@@ -25,21 +25,21 @@
             <ion-label>Inicio</ion-label>
           </ion-item>
 
-          <ion-item button (click)="navigateTo('vehicles')">
-            <ion-icon slot="start" name="car-outline"></ion-icon>
-            <ion-label>Vehículos</ion-label>
-          </ion-item>
+          @if (role() === 'admin') {
+            <ion-item button (click)="navigateTo('vehicles')">
+              <ion-icon slot="start" name="car-outline"></ion-icon>
+              <ion-label>Vehículos</ion-label>
+            </ion-item>
+          }
 
           <ion-item button (click)="navigateTo('notifications')">
             <ion-icon slot="start" name="notifications-outline"></ion-icon>
             <ion-label>Notificaciones</ion-label>
-            <ion-badge
-              *ngIf="unreadNotifications > 0"
-              slot="end"
-              color="danger"
-            >
-              {{ unreadNotifications }}
-            </ion-badge>
+            @if (unreadNotifications > 0) {
+              <ion-badge slot="end" color="danger">
+                {{ unreadNotifications }}
+              </ion-badge>
+            }
           </ion-item>
 
           <ion-item button (click)="navigateTo('profile')">
@@ -63,6 +63,11 @@
             <ion-menu-button></ion-menu-button>
           </ion-buttons>
           <ion-title>{{ currentTitle }}</ion-title>
+          @if (role()) {
+            <ion-badge slot="end" [color]="role() === 'admin' ? 'tertiary' : (role() === 'conductor' ? 'success' : 'medium')" style="margin-right:12px; text-transform: capitalize;">
+              {{ role() }}
+            </ion-badge>
+          }
         </ion-toolbar>
       </ion-header>
 
@@ -78,14 +83,16 @@
               <ion-label>Inicio</ion-label>
             </ion-tab-button>
 
-            <ion-tab-button
-              tab="vehicles"
-              (click)="updateTitle('Vehículos')"
-              (ionSelect)="updateTitle('Vehículos')"
-            >
-              <ion-icon name="car-outline"></ion-icon>
-              <ion-label>Vehículos</ion-label>
-            </ion-tab-button>
+            @if (role() === 'admin') {
+              <ion-tab-button
+                tab="vehicles"
+                (click)="updateTitle('Vehículos')"
+                (ionSelect)="updateTitle('Vehículos')"
+              >
+                <ion-icon name="car-outline"></ion-icon>
+                <ion-label>Vehículos</ion-label>
+              </ion-tab-button>
+            }
 
             <ion-tab-button
               tab="notifications"
@@ -94,9 +101,9 @@
             >
               <ion-icon name="notifications-outline"></ion-icon>
               <ion-label>Notificaciones</ion-label>
-              <ion-badge *ngIf="unreadNotifications > 0" color="danger">
-                {{ unreadNotifications }}
-              </ion-badge>
+               @if (unreadNotifications > 0) {
+                <ion-badge color="danger">{{ unreadNotifications }}</ion-badge>
+              }
             </ion-tab-button>
 
             <ion-tab-button

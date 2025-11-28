@@ -88,7 +88,9 @@ import { SupabaseService } from '../../services/supabase.service';
           <ion-item button (click)="navigateAbs('/tabs/notifications')">
             <ion-icon slot="start" name="notifications-outline"></ion-icon>
             <ion-label>Notificaciones</ion-label>
-            <ion-badge *ngIf="unreadNotifications > 0" slot="end" color="danger">{{ unreadNotifications }}</ion-badge>
+            @if (unreadNotifications > 0) {
+              <ion-badge slot="end" color="danger">{{ unreadNotifications }}</ion-badge>
+            }
           </ion-item>
           <ion-item button (click)="navigateAbs('/tabs/profile')">
             <ion-icon slot="start" name="person-outline"></ion-icon>

@@ -6,7 +6,7 @@ export const environment = {
   },
   api: {
     // En desarrollo usamos el proxy de Angular para evitar CORS
-    baseUrl: 'http://apirecoleccion.gonzaloandreslucio.com/api/',
+    baseUrl: 'https://apirecoleccion.gonzaloandreslucio.com/api/',
     profileId: '3c4e03f8-102a-47c8-b4bc-6e86b7cdef07',
     supportsRecorridos: true
   },

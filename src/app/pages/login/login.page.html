@@ -11,17 +11,16 @@
               <ion-text class="form-subtitle">Rastrea tu basura en tiempo real</ion-text>
             </ion-col>
           </ion-row>
-          <form [formGroup]="form" (ngSubmit)="isSignUp() ? signUp() : login()">
-            <ion-list>
-              <ion-item>
-                <ion-label position="stacked">Email</ion-label>
-                <ion-input
-                  type="email"
-                  formControlName="email"
-                  placeholder="tu@email.com"
-                  required>
-                </ion-input>
-              </ion-item>
+          <ion-list [formGroup]="form">
+            <ion-item>
+              <ion-label position="stacked">Email</ion-label>
+              <ion-input
+                type="email"
+                formControlName="email"
+                placeholder="tu@email.com"
+                required>
+              </ion-input>
+            </ion-item>
 
               @if (isSignUp()) {
                 <ion-item>
@@ -46,17 +45,16 @@
               </ion-item>
 
               <ion-button
-                type="submit"
                 expand="block"
                 [disabled]="isLoading() || form.invalid"
-                class="login-button">
+                class="login-button"
+                (click)="isSignUp() ? signUp() : login()">
                 @if (isLoading()) {
                   <ion-spinner name="crescent"></ion-spinner>
                   <ion-text style="margin-left: 8px">Cargando...</ion-text>
                 } @else { {{ isSignUp() ? 'Registrarse' : 'Iniciar Sesión' }} }
               </ion-button>
             </ion-list>
-          </form>
 
           <ion-row class="toggle-section" justify-content-center>
             <ion-col size="12" class="ion-text-center">

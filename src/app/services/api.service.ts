@@ -4,6 +4,7 @@ import { environment } from '../../environments/environment';
 import { firstValueFrom, throwError } from 'rxjs';
 import { timeout, catchError } from 'rxjs/operators';
 import { Capacitor, CapacitorHttp, HttpOptions } from '@capacitor/core';
+import { SupabaseService } from './supabase.service';
 
 export interface Ruta {
   id: string;
@@ -64,7 +65,7 @@ export class ApiService {
   private baseUrl = environment.api.baseUrl;
   private profileId = environment.api.profileId;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private supabase: SupabaseService) {}
 
   // Obtener todas las rutas
   async getRutas(): Promise<Ruta[]> {
@@ -115,20 +116,46 @@ export class ApiService {
   async getVehiculos(): Promise<Vehiculo[]> {
     const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
     console.log('API Service - Solicitando vehículos desde:', url);
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
-      return (res?.data?.data as Vehiculo[]) || [];
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
+        const data = (res?.data?.data as Vehiculo[]) || (Array.isArray(res?.data) ? (res?.data as Vehiculo[]) : []);
+        if (Array.isArray(data) && data.length > 0) return data;
+      } else {
+        const response = await firstValueFrom(
+          this.http.get<any>(url).pipe(
+            timeout(12000),
+            catchError(err => { console.warn('API getVehiculos error:', err?.status, err?.message); return throwError(() => err); })
+          )
+        );
+        if (Array.isArray(response)) return response as Vehiculo[];
+        if (response && Array.isArray(response.data)) return response.data as Vehiculo[];
+      }
+    } catch (e) {
+      // continue to fallback
     }
-    const response = await firstValueFrom(this.http.get<{data: Vehiculo[]}>(url).pipe(timeout(12000), catchError(err => { console.warn('API getVehiculos error:', err?.status, err?.message); return throwError(() => err); })));
-    return response?.data || [];
+    try {
+      const { data, error } = await this.supabase.getVehiculos();
+      if (error) {
+        return [];
+      }
+      return (data as any[]) as Vehiculo[];
+    } catch {
+      return [];
+    }
   }
 
   // Obtener ubicación actual de un vehículo
   async getUbicacionVehiculo(vehiculoId: string): Promise<UbicacionVehiculo> {
-    // Endpoint no disponible en API pública actual
-    console.warn('API Service - getUbicacionVehiculo no soportado por API. Retornando mock.');
     return Promise.resolve({
-      id: '', vehiculo_id: vehiculoId, latitud: 0, longitud: 0, velocidad: 0, direccion: 0, timestamp: new Date().toISOString(), created_at: new Date().toISOString()
+      id: '',
+      vehiculo_id: vehiculoId,
+      latitud: 0,
+      longitud: 0,
+      velocidad: 0,
+      direccion: 0,
+      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString()
     });
   }
 
@@ -141,14 +168,17 @@ export class ApiService {
 
   // --- CRUD de Vehículos ---
   // Crear vehículo
-  async createVehiculo(payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>): Promise<Vehiculo> {
+  async createVehiculo(payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>> & { perfil_id?: string }): Promise<Vehiculo> {
     const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
-    console.log('API Service - Creando vehículo en:', url, payload);
+    const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId } as any;
+    console.log('API Service - Creando vehículo en:', url, body);
     if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: payload });
-      return (res?.data as Vehiculo) as any;
+      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: body });
+      const data = (res?.data as any);
+      return (data?.data ?? data) as Vehiculo;
     }
-    return await firstValueFrom(this.http.post<Vehiculo>(url, payload).pipe(timeout(12000)));
+    const resp = await firstValueFrom(this.http.post<any>(url, body).pipe(timeout(12000)));
+    return (resp?.data ?? resp) as Vehiculo;
   }
 
   // Actualizar vehículo
@@ -208,5 +238,32 @@ export class ApiService {
       return res?.data;
     }
     return await firstValueFrom(this.http.get<any>(url).pipe(timeout(12000)));
+  }
+
+  // Recorridos: iniciar
+  async iniciarRecorrido(payload: { ruta_id: string; vehiculo_id: string; perfil_id?: string }): Promise<any> {
+    const url = `${this.baseUrl}recorridos/iniciar?perfil_id=${this.profileId}`;
+    const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId };
+    console.log('API Service - Iniciar recorrido:', url, body);
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: body });
+      const data = res?.data as any;
+      return data?.data ?? data;
+    }
+    const resp = await firstValueFrom(this.http.post<any>(url, body).pipe(timeout(12000)));
+    return resp?.data ?? resp;
+  }
+
+  // Recorridos: registrar posición
+  async registrarPosicion(recorridoId: string, payload: { lat: number; lon: number; perfil_id?: string }): Promise<any> {
+    const url = `${this.baseUrl}recorridos/${recorridoId}/posiciones?perfil_id=${this.profileId}`;
+    const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId };
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: body });
+      const data = res?.data as any;
+      return data?.data ?? data;
+    }
+    const resp = await firstValueFrom(this.http.post<any>(url, body).pipe(timeout(12000)));
+    return resp?.data ?? resp;
   }
 }

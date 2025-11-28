@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { RecorridosService } from '../../services/recorridos.service';
 import { MapDataService } from '../../services/map-data.service';
 import { SupabaseService } from '../../services/supabase.service';
+import { RecorridoMapContainerComponent } from '../../components/recorrido-map-container/recorrido-map-container.component';
 
 import * as L from 'leaflet';
 import { Geolocation } from '@capacitor/geolocation';
@@ -13,7 +14,7 @@ import { Geolocation } from '@capacitor/geolocation';
 @Component({
   selector: 'app-conductor-recorrido',
   standalone: true,
-  imports: [IonicModule, CommonModule],
+  imports: [IonicModule, CommonModule, RecorridoMapContainerComponent],
   templateUrl: './conductor-recorrido.page.html',
   styleUrls: ['./conductor-recorrido.page.scss']
 })
@@ -41,6 +42,7 @@ export class ConductorRecorridoPage implements OnDestroy {
   private broadcastChannel: any = null;
   private lastPersistAt = 0;
   private persistIntervalMs = 5000; // persistir cada 5s
+  private persistTimer: any = null;
 
   constructor(
     private recorridos: RecorridosService,
@@ -60,13 +62,8 @@ export class ConductorRecorridoPage implements OnDestroy {
     // Siempre cargar la geometría de la ruta seleccionada y dibujarla
     this.loadAndShowRouteShape().then(() => {
       if (this.activo() && !this.paused()) {
-        // Si hay geometría de ruta, simular movimiento siguiendo la línea
-        if (this.routeCoords.length > 1) {
-          this.startSimulation();
-        } else {
-          // Fallback: usar geolocalización si no hay shape
-          this.startWatching();
-        }
+        // Para el conductor siempre usamos GPS real
+        this.startWatching();
       } else {
         this.stopWatching();
         this.stopSimulation();
@@ -112,7 +109,6 @@ export class ConductorRecorridoPage implements OnDestroy {
         this.accuracy.set(Number.isFinite(coords.accuracy || NaN) ? (coords.accuracy as number) : null);
         this.appendPathPoint(coords.latitude, coords.longitude);
         this.updateMapMarker();
-        await this.pushPosition();
       },
       err => {
         this.errorMsg.set(err?.message || 'Error de geolocalización');
@@ -179,62 +175,23 @@ export class ConductorRecorridoPage implements OnDestroy {
   }
 
   private startSimulation() {
-    if (this.simTimer) return;
-    if (this.routeCoords.length < 2) return;
-    this.errorMsg.set(null);
-    this.simIndex = 0;
-    const stepMs = 1000; // 1 segundo por punto
-    this.simTimer = setInterval(async () => {
-      if (this.paused()) return;
-      const pt = this.routeCoords[this.simIndex];
-      if (!pt) { this.stopSimulation(); return; }
-      this.lat.set(pt.lat);
-      this.lng.set(pt.lng);
-      this.velocidad.set(5); // m/s aproximado para enviar
-      this.appendPathPoint(pt.lat, pt.lng);
-      this.updateMapMarker(this.simIndex === 0);
-      await this.pushPosition();
-      this.simIndex++;
-      if (this.simIndex >= this.routeCoords.length) {
-        // Llegó al final: finalizar automáticamente
-        await this.finalizar();
-      }
-    }, stepMs);
+    // Lógica de simulación desactivada: el recorrido se controla desde MapaPage
   }
 
   private stopSimulation() {
-    if (this.simTimer) {
-      clearInterval(this.simTimer);
-      this.simTimer = null;
-    }
+    // Lógica de simulación desactivada
+  }
+
+  private startPersistTimer() {
+    // Envío periódico de posiciones desactivado en esta página
+  }
+
+  private stopPersistTimer() {
+    // Envío periódico de posiciones desactivado en esta página
   }
 
   private async pushPosition() {
-    const recId = this.recorridos.getActiveRecorridoId();
-    if (!recId) return;
-    const lat = this.lat();
-    const lng = this.lng();
-    const vel = this.velocidad() ?? undefined;
-    if (lat == null || lng == null) return;
-    // Emitir por broadcast en tiempo real (sin escribir BD)
-    try {
-      await this.supabaseSvc.broadcastPosition(this.broadcastChannel, { recorrido_id: recId, ruta_id: this.recorridos.getCurrentRouteId() ?? null, lat, lng });
-    } catch {}
-    // Enviar a API externa
-    const now = Date.now();
-    if (now - this.lastPersistAt >= this.persistIntervalMs) {
-      const apiOk = await this.mapData.registrarPosicion(recId, lat, lng, vel);
-      this.lastApiOk.set(!!apiOk);
-      // Guardar en Supabase
-      try {
-        const rutaId = this.recorridos.getCurrentRouteId();
-        const { error } = await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId ?? null, lat, lng, velocidad: vel ?? null });
-        this.lastSupabaseOk.set(!error);
-      } catch {
-        this.lastSupabaseOk.set(false);
-      }
-      this.lastPersistAt = now;
-    }
+    // Envío de posición desactivado aqui; MapaPage es quien publica la posición del conductor
   }
 
   togglePause() {

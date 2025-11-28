@@ -7,6 +7,8 @@ import { MapDataService, RutaApiItem, RecorridoApiItem, PosicionApiItem } from '
 import { ApiService, Vehiculo } from '../../services/api.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { environment } from '../../../environments/environment';
+import { ActivatedRoute } from '@angular/router';
+import { Geolocation } from '@capacitor/geolocation';
 
 @Component({
   selector: 'app-mapa',
@@ -31,24 +33,34 @@ export class MapaPage implements AfterViewInit {
   private simMarker: L.Marker | null = null;
   private simPath: L.LatLng[] = [];
   private vehicleIcon: L.Icon | null = null;
-  // Throttle for posting positions
+  private selfMarker: L.Marker | null = null;
+  private osmLayer: L.TileLayer | null = null;
+  private satLayer: L.TileLayer | null = null;
   private lastApiPosAtMs = 0;
   private lastSupaPosAtMs = 0;
   private readonly MIN_API_POS_MS = 5000; // >=5s para API externa
   private readonly MIN_SUPA_POS_MS = 4000; // >=4s para Supabase
   private readonly LAST_POS_KEY = 'rt_last_conductor_pos';
+  private lastLat: number | null = null;
+  private lastLng: number | null = null;
+  private lastVel: number | null = null;
+  private posTimer: any = null; // Timer 5s para enviar posiciones a API/Supabase
+  private recTimer: any = null; // Timer 10s para GET /misrecorridos (conductor)
   realTracking = signal(true);
   private watchId: number | null = null;
+  private geoWatchId: string | null = null;
   private snapIndex = 0;
   private snapSeg = 0;
   private lastSnap: L.LatLng | null = null;
   private finishPromptShown = false;
   showCalles = signal(true);
   showRutas = signal(true);
+  baseLayer = signal<'map' | 'sat'>('map');
   rutas = signal<RutaApiItem[]>([]);
   selectedRutaId = signal<string | null>(null);
   activeRecorrido = signal<RecorridoApiItem | null>(null);
   vehicles = signal<Vehiculo[]>([]);
+  activeClientRecs = signal<RecorridoApiItem[]>([]);
   
   // Obtener vehículos disponibles
   availableVehicles() {
@@ -58,7 +70,6 @@ export class MapaPage implements AfterViewInit {
       if (typeof any.estado === 'string') {
         const s = any.estado.toLowerCase();
         if (s.includes('mantenimiento')) return false;
-        // No excluir por 'en_ruta' debido a inconsistencia del API
       }
       return true;
     });
@@ -78,7 +89,8 @@ export class MapaPage implements AfterViewInit {
     private supabaseSvc: SupabaseService,
     private api: ApiService,
     private alertCtrl: AlertController,
-    private navCtrl: NavController
+    private navCtrl: NavController,
+    private route: ActivatedRoute
   ) { }
 
   ngAfterViewInit() {
@@ -90,7 +102,6 @@ export class MapaPage implements AfterViewInit {
     this.loadCallesLayer();
     this.loadRutasLayer();
     this.loadVehicles();
-    // Cargar rol y luego iniciar observación para clientes
     this.loadUserRole().then(() => this.watchActiveRecorridosForClients());
   }
 
@@ -159,6 +170,22 @@ export class MapaPage implements AfterViewInit {
       this.watchActiveRecorridosForClients();
       // Conductores: intentar restaurar posición y continuar si hay recorrido en curso
       if (this.userRole() === 'conductor') {
+        // Preselección desde query params (ruta y vehiculo)
+        try {
+          const qp = this.route.snapshot.queryParamMap;
+          const rutaId = qp.get('ruta');
+          const vehiculoId = qp.get('vehiculo');
+          if (rutaId) {
+            this.selectedRutaId.set(rutaId);
+            this.highlightSelectedRuta(rutaId);
+          }
+          if (vehiculoId) {
+            this.selectedVehiculoId.set(vehiculoId);
+          }
+        } catch {}
+        if (this.realTracking()) {
+          try { await this.ensureGeoPermission(); await this.showCurrentPositionOnce(); } catch {}
+        }
         // Pintar último punto inmediatamente si existe
         const restored = this.restoreLastConductorPos();
         if (restored) {
@@ -227,32 +254,79 @@ export class MapaPage implements AfterViewInit {
     } catch {}
   }
 
-  onToggleRealTracking(ev: CustomEvent) {
-    const value = (ev.detail as any)?.checked ?? true;
-    const prev = this.realTracking();
+  onBaseLayerChange(ev: CustomEvent) {
+    const value = ((ev.detail as any)?.value ?? 'map') as 'map' | 'sat';
+    const prev = this.baseLayer();
     if (value === prev) return;
-    this.realTracking.set(value);
-    const hasActive = !!this.activeRecorrido();
-    if (!hasActive) return;
-    // Cambiar modos en caliente
-    if (value) {
-      if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
-      this.startRealTracking();
+    this.baseLayer.set(value);
+    if (!this.map) return;
+    const map = this.map as L.Map;
+    if (value === 'map') {
+      if (this.satLayer && (map as any).hasLayer?.(this.satLayer)) {
+        map.removeLayer(this.satLayer);
+      }
+      if (this.osmLayer && !(map as any).hasLayer?.(this.osmLayer)) {
+        this.osmLayer.addTo(map);
+      }
     } else {
-      if (this.watchId !== null) { navigator.geolocation?.clearWatch?.(this.watchId); this.watchId = null; }
-      this.startSimulation();
+      if (this.osmLayer && (map as any).hasLayer?.(this.osmLayer)) {
+        map.removeLayer(this.osmLayer);
+      }
+      if (this.satLayer && !(map as any).hasLayer?.(this.satLayer)) {
+        this.satLayer.addTo(map);
+      }
     }
   }
 
-  private startRealTracking() {
+  onToggleRealTracking(ev: CustomEvent) {
+    const value = (ev.detail as any)?.checked ?? true;
+    const prev = this.realTracking();
+    const hasActive = !!this.activeRecorrido();
+    // Si hay un recorrido activo, no permitir cambiar el modo de ubicación
+    if (hasActive) {
+      try { (ev.target as any).checked = prev; } catch {}
+      this.realTracking.set(prev);
+      // Avisar brevemente al conductor
+      (async () => {
+        try {
+          const alert = await this.alertCtrl.create({
+            message: 'No puedes cambiar la ubicación real mientras haya un recorrido en progreso.',
+            buttons: ['OK'],
+            cssClass: 'rt-small-alert'
+          });
+          await alert.present();
+          await alert.onDidDismiss();
+        } catch {}
+      })();
+      return;
+    }
+    if (value === prev) return;
+    this.realTracking.set(value);
+    // Cambiar modos sólo cuando NO hay recorrido en curso
+    if (value) {
+      if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
+      (async () => {
+        try { await this.ensureGeoPermission(); await this.showCurrentPositionOnce(); } catch {}
+      })();
+    } else {
+      (async () => {
+        try {
+          if (this.geoWatchId) {
+            await Geolocation.clearWatch({ id: this.geoWatchId });
+            this.geoWatchId = null;
+          }
+        } catch {}
+        if (this.watchId !== null) { navigator.geolocation?.clearWatch?.(this.watchId); this.watchId = null; }
+      })();
+    }
+  }
+
+  private async startRealTracking() {
     // Ensure map and polyline/marker
     if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); }
     this.simPolyline = L.polyline([], { color: '#2ecc71', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
     if (this.simMarker && this.map) { (this.map as L.Map).removeLayer(this.simMarker); }
     this.simMarker = null;
-    if (!('geolocation' in navigator)) {
-      return;
-    }
     // Build dense path for snapping
     if (!this.simPath || this.simPath.length < 2) {
       if (this.routeCoords && this.routeCoords.length >= 2) {
@@ -273,12 +347,43 @@ export class MapaPage implements AfterViewInit {
       this.snapSeg = 0;
       this.lastSnap = null;
     }
-    if (this.watchId !== null) return;
-    this.watchId = navigator.geolocation.watchPosition(
-      async pos => {
-        const rec = this.activeRecorrido();
+    if (this.geoWatchId) return;
+    try {
+      const id = await Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 10000 },
+        async (pos, err) => {
+          if (err || !pos) { return; }
+        let rec = this.activeRecorrido();
         const rutaId = this.selectedRutaId();
-        if (!rec || !rutaId) return;
+        console.log('[MapaPage] watchPosition tick', {
+          recId: rec?.id,
+          rutaId,
+          coords: { lat: pos.coords.latitude, lng: pos.coords.longitude, speed: pos.coords.speed }
+        });
+        if (!rec || !rutaId) {
+          console.warn('[MapaPage] watchPosition sin rec o sin ruta seleccionada, no se envía a API/Supabase');
+          return;
+        }
+        // Resolver id real si el recorrido aún tiene un id local-*
+        let recId: string | null = rec.id;
+        if (recId && recId.startsWith('local-')) {
+          try {
+            const list = await this.mapData.loadRecorridos();
+            const running = (list || []).find((r: any) => {
+              const estado = (r.estado || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+              return estado.includes('progreso') || estado.includes('curso');
+            });
+            if (running && running.id && !running.id.startsWith('local-')) {
+              rec = running as any;
+              this.activeRecorrido.set(running);
+              recId = running.id;
+            }
+          } catch {}
+        }
+        if (!recId) {
+          console.warn('[MapaPage] watchPosition sin recId resolvido, se omite envío a API/Supabase');
+          return;
+        }
         const rawLat = pos.coords.latitude;
         const rawLng = pos.coords.longitude;
         // Snap to route (forward only)
@@ -286,15 +391,10 @@ export class MapaPage implements AfterViewInit {
         const lat = snap?.lat ?? rawLat;
         const lng = snap?.lng ?? rawLng;
         const vel = Number.isFinite(pos.coords.speed || NaN) ? (pos.coords.speed as number) : 5;
-        const now = Date.now();
-        if (rec.id && !rec.id.startsWith('local-') && (now - this.lastApiPosAtMs) >= this.MIN_API_POS_MS) {
-          this.lastApiPosAtMs = now;
-          await this.mapData.registrarPosicion(rec.id, lat, lng, vel);
-        }
-        if ((now - this.lastSupaPosAtMs) >= this.MIN_SUPA_POS_MS) {
-          this.lastSupaPosAtMs = now;
-          try { await this.supabaseSvc.createUbicacion({ recorrido_id: rec.id, ruta_id: rutaId, lat, lng, velocidad: vel }); } catch {}
-        }
+        // Guardar última posición para timers periódicos y restauración
+        this.lastLat = lat;
+        this.lastLng = lng;
+        this.lastVel = vel;
         // Update visuals
         if (this.simPolyline) {
           const pts = (this.simPolyline.getLatLngs() as L.LatLng[]);
@@ -308,18 +408,79 @@ export class MapaPage implements AfterViewInit {
           this.simMarker = L.marker(ll, { title: 'Vehículo', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
         }
         (this.map as L.Map).panTo(ll, { animate: true });
-        // Persistir última posición para restauración
-        try { this.persistLastConductorPos(rec.id, lat, lng); } catch {}
+        // Persistir última posición para restauración (sincronizada con timers)
+        try { this.persistLastConductorPos(recId, lat, lng); } catch {}
         // Auto-finish prompt if almost at the end of the route
         const end = this.simPath?.[this.simPath.length - 1];
         const distToEnd = end ? L.latLng(lat, lng).distanceTo(end) : Infinity;
         if (this.simPath && this.simPath.length > 2 && (this.snapSeg >= this.simPath.length - 2 || distToEnd < 15)) {
           await this.maybePromptFinish();
         }
-      },
-      _err => {},
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
-    );
+        }
+      );
+      this.geoWatchId = id;
+    } catch {}
+  }
+
+  private startPosTimer() {
+    if (this.posTimer) return;
+    this.posTimer = setInterval(async () => {
+      const rec = this.activeRecorrido();
+      const rutaId = this.selectedRutaId();
+      const lat = this.lastLat;
+      const lng = this.lastLng;
+      const vel = this.lastVel ?? 5;
+      if (!rec || !rutaId || lat == null || lng == null) return;
+      const recId = rec.id;
+      if (!recId) return;
+      // Si el id aún es local-*, esperamos a que el timer de /misrecorridos resuelva el id real
+      if (recId.startsWith('local-')) return;
+      const now = Date.now();
+      console.log('[MapaPage] Timer 5s -> enviar posición a API y Supabase', { recId, rutaId, lat, lng, vel });
+      if ((now - this.lastApiPosAtMs) >= this.MIN_API_POS_MS) {
+        this.lastApiPosAtMs = now;
+        try { await this.mapData.registrarPosicion(recId, lat, lng, vel); } catch {}
+      }
+      if ((now - this.lastSupaPosAtMs) >= this.MIN_SUPA_POS_MS) {
+        this.lastSupaPosAtMs = now;
+        try { await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId, lat, lng, velocidad: vel }); } catch {}
+      }
+      try { this.persistLastConductorPos(recId, lat, lng); } catch {}
+    }, 5000);
+  }
+
+  private stopPosTimer() {
+    if (this.posTimer) {
+      clearInterval(this.posTimer);
+      this.posTimer = null;
+    }
+  }
+
+  private startRecTimer() {
+    if (this.recTimer || this.userRole() !== 'conductor') return;
+    this.recTimer = setInterval(async () => {
+      try {
+        const list = await this.mapData.loadRecorridos();
+        const isRunning = (s: string) => {
+          const t = (s || '').toLowerCase().replace(/[_-]/g, ' ').trim();
+          return t.includes('progreso') || t.includes('curso');
+        };
+        const running = (list || []).find(r => isRunning((r as any).estado || ''));
+        if (running && running.id) {
+          this.activeRecorrido.set(running as any);
+          if ((running as any).ruta_id) {
+            this.selectedRutaId.set((running as any).ruta_id);
+          }
+        }
+      } catch {}
+    }, 10000);
+  }
+
+  private stopRecTimer() {
+    if (this.recTimer) {
+      clearInterval(this.recTimer);
+      this.recTimer = null;
+    }
   }
 
   // Snap a lat/lng to the nearest point ON ROUTE SEGMENTS with forward progress and jump guard
@@ -422,6 +583,34 @@ export class MapaPage implements AfterViewInit {
     return r?.nombre || r?.nombre_ruta || '';
   }
 
+  getRutaNombre(id: string | null | undefined): string {
+    if (!id) return '';
+    const r = (this.rutas() || []).find(x => x.id === id) as any;
+    return r?.nombre || r?.nombre_ruta || '';
+  }
+
+  async onFocusRecorrido(rec: RecorridoApiItem) {
+    try {
+      const recId: string = (rec as any)?.id;
+      const rutaId: string | null = (rec as any)?.ruta_id || null;
+      if (rutaId) {
+        this.selectedRutaId.set(rutaId);
+        this.highlightSelectedRuta(rutaId);
+      }
+      const posiciones = await this.mapData.listarPosiciones(recId);
+      if (Array.isArray(posiciones) && posiciones.length && this.map) {
+        const pts = posiciones.map(p => L.latLng(p.lat, p.lng));
+        this.drawClientPolyline(recId, pts);
+        const last = pts[pts.length - 1];
+        this.drawClientMarker(recId, last.lat, last.lng);
+        try {
+          const bounds = L.latLngBounds(pts);
+          (this.map as L.Map).fitBounds(bounds.pad(0.2));
+        } catch {}
+      }
+    } catch {}
+  }
+
   // Abrir selector confiable en móvil usando AlertController con radios
   async openRoutePicker() {
     try {
@@ -495,12 +684,13 @@ export class MapaPage implements AfterViewInit {
       }
       this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
       const layer = L.geoJSON({ type: 'Feature', geometry: line } as any, {
-        style: () => ({ color: '#2196f3', weight: 5, opacity: 1 })
+        // Rutas en naranja, grosor similar a calles
+        style: () => ({ color: '#ff9800', weight: 2, opacity: 1 })
       }).addTo(this.map as L.Map);
       this.selectedRutaLayer = layer;
       // Fallback visual con polyline explícita
       try {
-        const pl = L.polyline(this.routeCoords, { color: '#2196f3', weight: 4, opacity: 0.9 });
+        const pl = L.polyline(this.routeCoords, { color: '#ff9800', weight: 2, opacity: 0.9 });
         pl.addTo(this.map as L.Map);
       } catch {}
       const bounds = (layer as any).getBounds?.();
@@ -536,7 +726,7 @@ export class MapaPage implements AfterViewInit {
       }
       if (!line || !Array.isArray(line.coordinates)) return;
       this.routeCoords = (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
-      const pl = L.polyline(this.routeCoords, { color: '#2196f3', weight: 4, opacity: 0.9 }).addTo(this.map as L.Map);
+      const pl = L.polyline(this.routeCoords, { color: '#ff9800', weight: 2, opacity: 0.9 }).addTo(this.map as L.Map);
       const bounds = pl.getBounds?.();
       if (bounds) {
         (this.map as L.Map).fitBounds(bounds.pad(0.2));
@@ -760,22 +950,54 @@ export class MapaPage implements AfterViewInit {
       maxBoundsViscosity: 1.0
     }).setView([3.8833, -77.0167], 12);
 
-    // Add OpenStreetMap tiles
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Base layer: OpenStreetMap (callejero)
+    this.osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 18,
+      maxZoom: 19,
       minZoom: 10
     }).addTo(this.map);
 
-    // Prepare vehicle icon
+    // Base layer alternativa: vista satélite (Esri World Imagery)
+    this.satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles \u00a9 Esri & contributors',
+      maxZoom: 19
+    });
+
+    // Prepare vehicle icon (car icon for client/conductor markers)
     try {
       this.vehicleIcon = L.icon({
-        iconUrl: 'assets/marker-icon.png',
-        iconRetinaUrl: 'assets/marker-icon-2x.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
+        iconUrl: 'assets/icon/carro.png',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
         shadowUrl: undefined
       });
+    } catch {}
+  }
+
+  private async ensureGeoPermission() {
+    try {
+      const status = await Geolocation.checkPermissions();
+      const loc = (status as any)?.location || (status as any)?.coarseLocation || (status as any)?.permissions?.location;
+      const granted = loc === 'granted' || loc === 'granted_when_in_use' || loc === 'always';
+      if (!granted) {
+        await Geolocation.requestPermissions();
+      }
+    } catch {}
+  }
+
+  private async showCurrentPositionOnce() {
+    try {
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const ll: L.LatLngExpression = [lat, lng];
+      if (!this.map) return;
+      if (this.selfMarker) {
+        this.selfMarker.setLatLng(ll);
+      } else {
+        this.selfMarker = L.marker(ll, { title: 'Mi ubicación', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
+      }
+      (this.map as L.Map).panTo(ll, { animate: true });
     } catch {}
   }
 
@@ -797,6 +1019,8 @@ export class MapaPage implements AfterViewInit {
     if (this.posicionesTimer) {
       clearInterval(this.posicionesTimer);
     }
+    this.stopPosTimer();
+    this.stopRecTimer();
     if (this.clientWatchTimer) {
       clearInterval(this.clientWatchTimer);
       this.clientWatchTimer = null;
@@ -816,6 +1040,10 @@ export class MapaPage implements AfterViewInit {
     if (this.simTimer) {
       clearInterval(this.simTimer);
       this.simTimer = null;
+    }
+    if (this.selfMarker && this.map) {
+      try { (this.map as L.Map).removeLayer(this.selfMarker); } catch {}
+      this.selfMarker = null;
     }
     if (this.simPolyline && this.map) {
       (this.map as L.Map).removeLayer(this.simPolyline);
@@ -837,14 +1065,21 @@ export class MapaPage implements AfterViewInit {
 
   private async loadUserRole() {
     try {
-      const user = await this.supabaseSvc.getCurrentUser();
+      const cached = this.supabaseSvc.currentRole?.();
+      if (cached) this.userRole.set(cached);
+      const userPromise = this.supabaseSvc.getCurrentUser();
+      const profilePromise = (async () => {
+        const u = await userPromise;
+        if (!u?.id) return { data: null } as any;
+        return await this.supabaseSvc.getProfile(u.id);
+      })();
+      const [user, prof] = await Promise.all([userPromise, profilePromise]);
       if (!user) {
         this.userRole.set('cliente');
         return;
       }
-      const prof = await this.supabaseSvc.getProfile(user.id);
       const data: any = (prof as any)?.data;
-      const role = data?.role || data?.rol || 'cliente';
+      const role = data?.role || data?.rol || this.supabaseSvc.currentRole?.() || 'cliente';
       if (role === 'admin' || role === 'conductor' || role === 'cliente') {
         this.userRole.set(role);
       } else {
@@ -970,7 +1205,8 @@ export class MapaPage implements AfterViewInit {
     }
 
     this.rutasLayer = L.geoJSON(fc, {
-      style: () => ({ color: '#2196f3', weight: 3, opacity: 0.9 })
+      // Rutas en naranja, grosor similar a calles
+      style: () => ({ color: '#ff9800', weight: 2, opacity: 0.9 })
     }).addTo(this.map);
 
     if (!this.showRutas()) {
@@ -1137,7 +1373,6 @@ export class MapaPage implements AfterViewInit {
     if (this.userRole() !== 'conductor') return;
     const rutaId = this.selectedRutaId();
     if (!rutaId) return;
-    // Seleccionar vehículo requerido por la API externa
     let vehiculoId: string | null = this.selectedVehiculoId();
     try {
       const vehiculos = this.vehicles();
@@ -1170,7 +1405,17 @@ export class MapaPage implements AfterViewInit {
     if (rec) {
       this.activeRecorrido.set(rec);
       this.beginPollingPosiciones(rec.id);
-      if (this.realTracking()) this.startRealTracking(); else this.startSimulation();
+      if (this.realTracking()) {
+        try {
+          await this.ensureGeoPermission();
+          await this.showCurrentPositionOnce();
+        } catch {}
+        this.startRealTracking();
+        this.startPosTimer();
+      } else {
+        this.startSimulation();
+      }
+      this.startRecTimer();
     } else {
       const local: RecorridoApiItem = {
         id: `local-${rutaId}-${Date.now()}`,
@@ -1182,7 +1427,17 @@ export class MapaPage implements AfterViewInit {
       this.activeRecorrido.set(local);
       this.beginPollingPosiciones(local.id);
       this.beginPromoteLocalRecorrido(local);
-      if (this.realTracking()) this.startRealTracking(); else this.startSimulation();
+      if (this.realTracking()) {
+        try {
+          await this.ensureGeoPermission();
+          await this.showCurrentPositionOnce();
+        } catch {}
+        this.startRealTracking();
+        this.startPosTimer();
+      } else {
+        this.startSimulation();
+      }
+      this.startRecTimer();
     }
   }
 
@@ -1208,7 +1463,6 @@ export class MapaPage implements AfterViewInit {
         try { await this.mapData.finalizarRecorrido(targetId); } catch {}
       }
     } catch {}
-    // Hacer cleanup local SIEMPRE para asegurar que la UI se detenga
     this.cleanupActiveRecorrido();
   }
 
@@ -1216,6 +1470,8 @@ export class MapaPage implements AfterViewInit {
     this.activeRecorrido.set(null);
     if (this.posicionesTimer) { clearInterval(this.posicionesTimer); this.posicionesTimer = null; }
     if (this.promoteTimer) { clearInterval(this.promoteTimer); this.promoteTimer = null; }
+    this.stopPosTimer();
+    this.stopRecTimer();
     if (this.simTimer) { clearInterval(this.simTimer); this.simTimer = null; }
     if (this.simPolyline && this.map) { (this.map as L.Map).removeLayer(this.simPolyline); this.simPolyline = null; }
     if (this.simMarker && this.map) { (this.map as L.Map).removeLayer(this.simMarker); this.simMarker = null; }
@@ -1266,7 +1522,6 @@ export class MapaPage implements AfterViewInit {
     // Densificar ruta para pasos cortos (~5m) y evitar saltos
     this.simPath = this.densifyRoute(coords, 5);
     if (!this.simPath || this.simPath.length < 2) return;
-    // Resume from nearest point to last persisted position if available
     const restored = this.restoreLastConductorPos();
     if (restored) {
       this.simIndex = this.findNearestIndexOnPath(restored.lat, restored.lng, this.simPath);

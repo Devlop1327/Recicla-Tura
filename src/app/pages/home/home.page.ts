@@ -4,7 +4,6 @@ import { IonicModule } from '@ionic/angular';
 import { ApiService, Ruta, Vehiculo, UbicacionVehiculo } from '../../services/api.service';
 import { MapDataService, RecorridoApiItem } from '../../services/map-data.service';
 import { SupabaseService } from '../../services/supabase.service';
-import { SyncService } from '../../services/sync.service';
 import { Router } from '@angular/router';
 
 @Component({
@@ -20,8 +19,6 @@ export class HomePage implements OnInit, OnDestroy {
   ubicacionesVehiculos = signal<UbicacionVehiculo[]>([]);
   recorridos = signal<RecorridoApiItem[]>([]);
   isLoading = signal(true);
-  isImporting = signal(false);
-  importMessage = signal<string | null>(null);
   selectedRuta = signal<Ruta | null>(null);
   mapCenter = signal({ lat: 3.8833, lng: -77.0167 });
   mapZoom = signal(13);
@@ -35,8 +32,7 @@ export class HomePage implements OnInit, OnDestroy {
     private apiService: ApiService,
     private supabaseService: SupabaseService,
     private router: Router,
-    private mapData: MapDataService,
-    private sync: SyncService
+    private mapData: MapDataService
   ) {}
 
   async ngOnInit() {
@@ -47,8 +43,8 @@ export class HomePage implements OnInit, OnDestroy {
 
   ionViewWillEnter() {
     // Refrescar inmediatamente al volver a la pestaña
-    this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {});
-    setTimeout(() => this.loadUbicacionesVehiculos(this.vehiculos()), 2000);
+    this.mapData.loadRecorridos().then(recs => { if (!this.destroyed) this.recorridos.set(recs || []); }).catch(() => {});
+    this.enterTimeout = setTimeout(() => { if (!this.destroyed) this.loadUbicacionesVehiculos(this.vehiculos()); }, 2000);
   }
 
   role(): 'admin' | 'conductor' | 'cliente' | null {
@@ -60,33 +56,89 @@ export class HomePage implements OnInit, OnDestroy {
     return (this.vehiculos() || []).filter(v => this.isVehiculoEnCurso(v)).length;
   }
 
+  displayName(): string {
+    const prof = this.supabaseService.currentProfile?.();
+    const name = (prof as any)?.full_name || (prof as any)?.fullName || '';
+    const email = (prof as any)?.email || this.supabaseService.currentUser?.()?.email || '';
+    return name || email || 'Usuario';
+  }
+
+  roleLabel(): string {
+    const r = this.role();
+    if (!r) return '';
+    return r;
+  }
+
+  roleBadgeColor(): string {
+    const r = this.role();
+    switch (r) {
+      case 'admin': return 'tertiary';
+      case 'conductor': return 'success';
+      case 'cliente': return 'medium';
+      default: return 'medium';
+    }
+  }
+
+  // Top 5 rutas más recorridas según frecuencia en "recorridos"
+  topRutas(): Ruta[] {
+    const recs = this.recorridos() || [];
+    const counts = new Map<string, number>();
+    for (const r of recs) {
+      const rutaId = (r as any)?.ruta_id || (r as any)?.rutaId || (r as any)?.ruta?.id;
+      if (!rutaId) continue;
+      counts.set(rutaId, (counts.get(rutaId) || 0) + 1);
+    }
+    const rutasArr = this.rutas() || [];
+    const rutasMap = new Map<string, Ruta>(rutasArr.map(rt => [rt.id, rt] as [string, Ruta]));
+    const sortedIds = Array.from(counts.entries()).sort((a,b) => b[1] - a[1]).map(([id]) => id);
+    const top = sortedIds
+      .map(id => rutasMap.get(id))
+      .filter((x): x is Ruta => !!x)
+      .slice(0, 5);
+    if (top.length < 5) {
+      const extras = rutasArr.filter(r => !sortedIds.includes(r.id)).slice(0, 5 - top.length);
+      return [...top, ...extras];
+    }
+    return top;
+  }
+
+  // Lista ordenada para UI: en curso > moviéndose > activos > por placa
+  vehiclesForDisplay(): Vehiculo[] {
+    const list = this.getVehiculosDeRuta(this.selectedRuta()?.id || '');
+    const score = (v: Vehiculo) => {
+      const running = this.isVehiculoEnCurso(v) ? 1 : 0;
+      const moving = this.isVehiculoMoviendose(v) ? 1 : 0;
+      const active = (v as any).activo ? 1 : 0;
+      return (running * 100) + (moving * 10) + active; // prioridad
+    };
+    return [...list].sort((a, b) => {
+      const sb = score(b) - score(a);
+      if (sb !== 0) return sb;
+      return (a.placa || '').localeCompare(b.placa || '');
+    });
+  }
+
   async go(path: string) {
     await this.router.navigateByUrl(path);
   }
 
-  // Importar calles desde la API pública a Supabase (tabla 'calles')
-  async importCallesToSupabase() {
-    try {
-      this.isImporting.set(true);
-      this.importMessage.set(null);
-      const { inserted, error } = await this.sync.syncCallesFromApi();
-      if (error) {
-        console.error('[Home] importCallesToSupabase error:', error);
-        this.importMessage.set('Error al importar calles a Supabase');
-      } else {
-        this.importMessage.set(`Importación de calles completada: ${inserted} registros`);
-      }
-    } catch (e) {
-      console.error('[Home] importCallesToSupabase exception:', e);
-      this.importMessage.set('Excepción durante la importación de calles');
-    } finally {
-      this.isImporting.set(false);
-    }
-  }
+  // Métodos de importación removidos para alinear con Home del proyecto raíz
+
+  private ubicacionesChannel: any;
+  private initTimeout: any;
+  private enterTimeout: any;
+  private destroyed = false;
 
   ngOnDestroy() {
+    this.destroyed = true;
     if (this.recorridosTimer) clearInterval(this.recorridosTimer);
     if (this.ubicacionesTimer) clearInterval(this.ubicacionesTimer);
+    if (this.ubicacionesChannel) {
+      try { this.supabaseService.supabase.removeChannel(this.ubicacionesChannel); } catch {}
+      this.ubicacionesChannel = null;
+    }
+    if (this.initTimeout) { clearTimeout(this.initTimeout); this.initTimeout = null; }
+    if (this.enterTimeout) { clearTimeout(this.enterTimeout); this.enterTimeout = null; }
   }
 
   async loadData() {
@@ -142,6 +194,32 @@ export class HomePage implements OnInit, OnDestroy {
         } catch (fallbackErr) {
           console.error('HomePage - Fallback Supabase rutas lanzó excepción:', fallbackErr);
           this.loadRutasEjemplo();
+        }
+      }
+
+      // Fallback adicional: si seguimos sin rutas (p. ej. API respondió 200 con []), probar MapDataService
+      if ((this.rutas() || []).length === 0) {
+        try {
+          console.log('HomePage - Cargando rutas desde MapDataService como último recurso...');
+          const rutasApi = await this.mapData.loadRutas();
+          const now = new Date().toISOString();
+          const mapped = (rutasApi || []).map((r: any) => ({
+            id: r.id?.toString?.() ?? r.id,
+            nombre: r.nombre ?? r.titulo ?? 'Ruta',
+            descripcion: r.descripcion ?? '',
+            color: '#3B82F6',
+            puntos: [],
+            activa: true,
+            created_at: now,
+            updated_at: now
+          }));
+          this.rutas.set(mapped);
+          if (mapped.length > 0) {
+            this.selectedRuta.set(mapped[0]);
+            apiSuccess = true;
+          }
+        } catch (e) {
+          console.warn('HomePage - MapDataService.loadRutas() también falló o retornó vacío:', e);
         }
       }
 
@@ -283,9 +361,10 @@ export class HomePage implements OnInit, OnDestroy {
   startRealTimeUpdates() {
     // Disparos iniciales escalonados
     this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {});
-    setTimeout(() => {
-      this.apiService.getVehiculos().then(vs => { this.vehiculos.set(vs || []); }).catch(() => {});
-      this.loadUbicacionesVehiculos(this.vehiculos());
+    this.initTimeout = setTimeout(() => {
+      if (this.destroyed) return;
+      this.apiService.getVehiculos().then(vs => { if (!this.destroyed) this.vehiculos.set(vs || []); }).catch(() => {});
+      if (!this.destroyed) this.loadUbicacionesVehiculos(this.vehiculos());
     }, 5000);
 
     // Timers separados y desfasados
@@ -301,11 +380,12 @@ export class HomePage implements OnInit, OnDestroy {
     }, 25000);
 
     // Suscribirse a cambios en tiempo real de Supabase
-    this.supabaseService.subscribeToUbicaciones((payload) => {
+    // Suscribirse a cambios en tiempo real de Supabase
+    this.ubicacionesChannel = this.supabaseService.subscribeToUbicaciones((payload) => {
       console.log('Cambio en ubicaciones:', payload);
       // Actualizar ubicaciones inmediato, refrescar recorridos con un pequeño retraso
-      this.loadUbicacionesVehiculos(this.vehiculos());
-      setTimeout(() => this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {}), 3000);
+      if (!this.destroyed) this.loadUbicacionesVehiculos(this.vehiculos());
+      setTimeout(() => { if (!this.destroyed) this.mapData.loadRecorridos().then(recs => this.recorridos.set(recs || [])).catch(() => {}); }, 3000);
     });
   }
 
@@ -428,39 +508,5 @@ export class HomePage implements OnInit, OnDestroy {
     return R * c;
   }
 
-  // Importar rutas desde la API pública a Supabase (tabla 'rutas')
-  async importRutasToSupabase() {
-    try {
-      this.isImporting.set(true);
-      this.importMessage.set(null);
-      // Cargar rutas desde API externa
-      const apiRutas = await this.mapData.loadRutas();
-      const rows = (apiRutas || []).map((r: any) => {
-        const nombre = r.nombre || r.nombre_ruta || 'Sin nombre';
-        const descripcion = r.descripcion || r.descripcion_ruta || null;
-        // Algunas APIs retornan shape como string JSON; respetar si existe
-        const shape = r.shape ? r.shape : (r.shape_ruta ? r.shape_ruta : null);
-        return {
-          id: r.id,
-          nombre,
-          descripcion,
-          shape,
-          activa: true
-        };
-      });
-      const { data, error } = await this.supabaseService.upsertRutas(rows);
-      if (error) {
-        console.error('[Home] importRutasToSupabase error:', error);
-        this.importMessage.set('Error al importar rutas a Supabase');
-      } else {
-        const count = Array.isArray(data) ? data.length : rows.length;
-        this.importMessage.set(`Importación completada: ${count} rutas`);
-      }
-    } catch (e) {
-      console.error('[Home] importRutasToSupabase exception:', e);
-      this.importMessage.set('Excepción durante la importación');
-    } finally {
-      this.isImporting.set(false);
-    }
-  }
+  // Método de importación de rutas removido para alinear con Home del proyecto raíz
 }

@@ -5,6 +5,8 @@ import { IonicModule } from '@ionic/angular';
 import { Router } from '@angular/router';
 import { SupabaseService } from '../../services/supabase.service';
 import { ToastController } from '@ionic/angular';
+import { MessageService } from '../../services/message.service';
+import { AvatarUploaderComponent } from '../../components/avatar-uploader/avatar-uploader.component';
 
 interface Profile {
   id: string;
@@ -22,7 +24,7 @@ interface Profile {
   templateUrl: './profile.page.html',
   styleUrls: ['./profile.page.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule]
+  imports: [IonicModule, CommonModule, FormsModule, AvatarUploaderComponent]
 })
 export class ProfilePage implements OnInit {
   profile = signal<Profile | null>(null);
@@ -34,10 +36,16 @@ export class ProfilePage implements OnInit {
   phone = signal('');
   address = signal('');
 
+  // Modal cambio de contraseña
+  pwdModal = signal(false);
+  pwdNew = signal('');
+  pwdConfirm = signal('');
+
   constructor(
     private supabaseService: SupabaseService,
     private router: Router,
-    private toastController: ToastController
+    private toastController: ToastController,
+    private messages: MessageService
   ) {}
 
   async ngOnInit() {
@@ -112,16 +120,39 @@ export class ProfilePage implements OnInit {
     }
   }
 
-  // Avatar upload
-  selectedFile: File | null = null;
+  // Password modal controls
+  openPwdModal() { this.pwdModal.set(true); }
+  closePwdModal() { this.pwdModal.set(false); this.pwdNew.set(''); this.pwdConfirm.set(''); }
 
-  onFileSelected(event: any) {
-    const file = event.target.files && event.target.files[0];
-    if (file) {
-      this.selectedFile = file;
+  async changePassword() {
+    try {
+      const newPwd = (this.pwdNew() || '').trim();
+      const confirm = (this.pwdConfirm() || '').trim();
+      if (!newPwd || newPwd.length < 6) {
+        await this.showToast('La contraseña debe tener al menos 6 caracteres', 'warning');
+        return;
+      }
+      if (newPwd !== confirm) {
+        await this.showToast('Las contraseñas no coinciden', 'warning');
+        return;
+      }
+      this.isLoading.set(true);
+      const { error } = await this.supabaseService.supabase.auth.updateUser({ password: newPwd });
+      if (error) {
+        await this.showToast('No se pudo cambiar la contraseña', 'danger');
+        return;
+      }
+      await this.showToast('Contraseña actualizada', 'success');
+      this.closePwdModal();
+    } catch (e) {
+      await this.showToast('Error inesperado al cambiar contraseña', 'danger');
+    } finally {
+      this.isLoading.set(false);
     }
   }
 
+  // Avatar upload
+  selectedFile: File | null = null;
   async uploadAvatar() {
     if (!this.selectedFile || !this.profile()) {
       this.showToast('Selecciona una imagen primero', 'warning');
@@ -171,12 +202,6 @@ export class ProfilePage implements OnInit {
   }
 
   private async showToast(message: string, color: string) {
-    const toast = await this.toastController.create({
-      message,
-      duration: 3000,
-      color: color,
-      position: 'top'
-    });
-    await toast.present();
+    await this.messages.toastMsg(message, color as any, 3000, 'top');
   }
 }

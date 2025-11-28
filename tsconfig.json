@@ -23,7 +23,12 @@
     ],
     "types": ["node"],
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "useDefineForClassFields": false
+    "useDefineForClassFields": false,
+    "paths": {
+      "@app/*": [
+        "src/app/*"
+      ]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
