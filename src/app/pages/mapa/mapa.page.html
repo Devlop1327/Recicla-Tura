@@ -10,7 +10,7 @@
 
 <ion-content>
   <ion-list inset="true">
-    <ion-item>
+    <ion-item class="ion-hide-sm-down">
       <ion-label>Vista</ion-label>
       <ion-segment slot="end" [value]="baseLayer()" (ionChange)="onBaseLayerChange($event)">
         <ion-segment-button value="map">
@@ -29,6 +29,16 @@
     <ion-item>
       <ion-label>Rutas</ion-label>
       <ion-toggle slot="end" [checked]="showRutas()" (ionChange)="onToggleRutas($event)"></ion-toggle>
+    </ion-item>
+    }
+
+    @if (userRole() === 'conductor' || userRole() === 'cliente') {
+    <ion-item>
+      <ion-label>Vista satélite</ion-label>
+      <ion-toggle
+        slot="end"
+        [checked]="baseLayer() === 'sat'"
+        (ionChange)="onToggleSat($event)"></ion-toggle>
     </ion-item>
     }
     @if (userRole() !== 'cliente') {
@@ -52,6 +62,10 @@
         }
       }
     }
+
+    @if (userRole() === 'cliente') {
+      <!-- Ruta selection removed for client -->
+    }
    
   </ion-list>
   @if (userRole() === 'admin') {
@@ -73,6 +87,13 @@
     </ion-list>
   }
   <ion-card id="mapa-map"></ion-card>
+
+  <!-- Botón flotante para cambiar entre mapa y satélite en móvil -->
+  <ion-fab class="map-base-fab" vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button color="primary" (click)="toggleBaseLayer()">
+      <ion-icon [name]="baseLayer() === 'map' ? 'planet-outline' : 'map-outline'"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
 
   @if (userRole() === 'cliente') {
     <ion-list inset="true">
@@ -118,7 +139,7 @@
         </ion-item>
         @for (v of availableVehicles(); track v.id) {
           <ion-item button (click)="selectVehiculo(v.id)">
-            <ion-label>{{ v.placa }}@if (v.modelo) { <span> · {{ v.modelo }}</span> }</ion-label>
+            <ion-label>{{ v.placa }}@if (v.modelo) { <ion-text> · {{ v.modelo }}</ion-text> }</ion-label>
             @if (selectedVehiculoId() === v.id) { <ion-badge color="primary" slot="end">Seleccionado</ion-badge> }
           </ion-item>
         }

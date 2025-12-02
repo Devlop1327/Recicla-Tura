@@ -1,16 +1,29 @@
  <ion-content class="login-content">
+  <!-- Theme toggle button in top right corner -->
+  <ion-button 
+    fill="clear" 
+    size="small" 
+    class="theme-toggle-btn"
+    (click)="toggleTheme()"
+    aria-label="Toggle theme">
+    <ion-icon 
+      [name]="isDarkMode() ? 'sunny' : 'moon'" 
+      slot="icon-only">
+    </ion-icon>
+  </ion-button>
+
   <ion-grid class="login-container">
-    
+
+    <ion-row class="logo-section" justify-content-center>
+      <ion-col size="12" class="ion-text-center">
+        <ion-img class="form-logo" src="assets/icon/icon.png" alt="Logo Recicla-Tura"></ion-img>
+        <ion-text class="form-subtitle">Rastrea tu basura en tiempo real</ion-text>
+      </ion-col>
+    </ion-row>
 
     <ion-row class="form-section" justify-content-center>
       <ion-card>
         <ion-card-content>
-          <ion-row class="ion-justify-content-center ion-margin-bottom">
-            <ion-col size="12" class="ion-text-center">
-              <ion-img class="form-logo" src="assets/icon/Logo.png" alt="Logo"></ion-img>
-              <ion-text class="form-subtitle">Rastrea tu basura en tiempo real</ion-text>
-            </ion-col>
-          </ion-row>
           <ion-list [formGroup]="form">
             <ion-item>
               <ion-label position="stacked">Email</ion-label>
@@ -69,9 +82,8 @@
 
     <ion-row class="info-section" justify-content-center>
       <ion-col size="12" class="ion-text-center">
-        <ion-text color="medium" class="ion-text-center">📍 Buenaventura, Colombia</ion-text>
-        <ion-text color="medium" class="ion-text-center">🚛 Rastrea el carro de basura en tiempo real</ion-text>
         <ion-button class="ion-margin-top" fill="clear" size="small" routerLink="/recover">¿Olvidaste tu contraseña?</ion-button>
+        <ion-text color="medium" class="ion-text-center">🚛 Rutas Ecologicas!</ion-text>
       </ion-col>
     </ion-row>
   </ion-grid>

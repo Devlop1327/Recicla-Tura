@@ -4,6 +4,7 @@ import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } 
 import { IonicModule } from '@ionic/angular';
 import { Router, RouterLink } from '@angular/router';
 import { SupabaseService } from '../../services/supabase.service';
+import { ThemeService } from '../../services/theme.service';
 import { ToastController, LoadingController } from '@ionic/angular';
 
 @Component({
@@ -20,15 +21,22 @@ export class LoginPage {
   isSignUp = signal(false);
   role = signal<'admin' | 'conductor' | 'cliente'>('cliente');
   form!: FormGroup;
+  isDarkMode = signal(false);
 
   constructor(
     private supabaseService: SupabaseService,
+    private themeService: ThemeService,
     private router: Router,
     private toastController: ToastController,
     private loadingController: LoadingController,
     private cdr: ChangeDetectorRef,
     private fb: FormBuilder
-  ) {}
+  ) {
+    // Subscribe to theme changes
+    this.themeService.isDarkMode$.subscribe(isDark => {
+      this.isDarkMode.set(isDark);
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     this.form = this.fb.group({
@@ -119,6 +127,10 @@ export class LoginPage {
 
   toggleSignUp() {
     this.isSignUp.set(!this.isSignUp());
+  }
+
+  toggleTheme() {
+    this.themeService.toggleTheme();
   }
 
   private async showToast(message: string, color: string) {

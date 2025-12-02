@@ -1,6 +1,25 @@
 .login-content {
-  /* White background */
-  --background: #ffffff;
+  --background: transparent;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.75)),
+    url('/assets/img/logo.png') center center / cover no-repeat fixed;
+}
+
+/* Theme toggle button styling */
+.theme-toggle-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  --color: var(--text-color-light);
+  --background-hover: rgba(255, 255, 255, 0.1);
+  --border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  
+  ion-icon {
+    font-size: 20px;
+  }
 }
 
 .login-container {
@@ -12,6 +31,14 @@
   padding: 20px;
 }
 
+/* Logo plano en la cabecera del login */
+.form-logo {
+  width: 140px;
+  height: auto;
+  margin: 4px auto 4px auto;
+  display: block;
+}
+
 /* Logo ahora vive dentro del card del formulario */
 
 .form-section {
@@ -20,23 +47,18 @@
 
   ion-card {
     border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.08), 0 0 0 1px rgba(126, 217, 87, 0.25);
-    backdrop-filter: blur(10px);
-    background: #ffffff;
-    /* Stronger apple-green border so the card outline doesn't get lost */
-    border: 2px solid #7ED957;
-  }
-
-  .form-logo {
-    width: 120px;
-    height: auto;
-    margin: 8px auto 6px auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.55);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: var(--card-background);
+    border: 2px solid var(--card-border);
   }
 
   .form-subtitle {
     display: block;
-    color: #4e5d4e;
-    font-size: 0.95rem;
+    color: var(--text-color-light);
+    font-size: 1rem;
+    font-weight: 600;
   }
 
   ion-item {
@@ -49,7 +71,7 @@
 
   ion-label {
     font-weight: 600;
-    color: var(--ion-color-dark);
+    color: var(--text-color);
   }
 
   ion-input {
@@ -58,6 +80,9 @@
     border-radius: 8px;
     border: 1px solid var(--ion-color-light);
     margin-top: 8px;
+    --color: var(--text-color);
+    --placeholder-color: var(--text-color-secondary);
+    --background: var(--card-background);
   }
 
   .login-button {
@@ -81,7 +106,7 @@
 
   ion-button {
     /* Green link-like button */
-    --color: #2E8B1F;
+    --color: var(--text-color);
     font-size: 0.9rem;
   }
 }
@@ -89,7 +114,7 @@
 .info-section {
   margin-top: 40px;
   text-align: center;
-  color: #5f6b5f;
+  color: var(--text-color-secondary);
 
   p {
     margin: 8px 0;

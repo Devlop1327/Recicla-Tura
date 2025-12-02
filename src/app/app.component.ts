@@ -3,6 +3,7 @@ import { IonicModule } from '@ionic/angular';
 import './leaflet-fix';
 import { Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationError, RoutesRecognized, Event } from '@angular/router';
 import { addIcons } from 'ionicons';
+import { ThemeService } from './services/theme.service';
 import {
   homeOutline,
   notificationsOutline,
@@ -31,7 +32,9 @@ import {
   checkmarkCircle,
   notifications,
   leafOutline,
-  leaf
+  leaf,
+  moon,
+  sunny
 } from 'ionicons/icons';
 
 @Component({
@@ -42,7 +45,7 @@ import {
   imports: [IonicModule]
 })
 export class AppComponent {
-  constructor(private router: Router) {
+  constructor(private router: Router, private themeService: ThemeService) {
     addIcons({
       homeOutline,
       notificationsOutline,
@@ -71,7 +74,9 @@ export class AppComponent {
       checkmarkCircle,
       notifications,
       leafOutline,
-      leaf
+      leaf,
+      moon,
+      sunny
     });
 
     this.router.events.subscribe((e: Event) => {

@@ -73,6 +73,14 @@ export class ConductorRutasPage {
       const res = await alert.onDidDismiss();
       if (res.role !== 'confirm') return;
       selected = (res.data as any)?.values ?? (res.data as any)?.value ?? selected;
+    } else {
+      const alert = await this.alertCtrl.create({
+        header: 'Sin vehículos',
+        message: 'No hay vehículos disponibles para asignar a este recorrido. Consulta con el administrador.',
+        buttons: ['OK']
+      });
+      await alert.present();
+      return;
     }
     await this.router.navigate(['/mapa'], {
       queryParams: {

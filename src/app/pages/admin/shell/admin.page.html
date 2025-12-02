@@ -1,5 +1,5 @@
 <ion-header>
-  <ion-toolbar>
+  <ion-toolbar style="padding-top: env(safe-area-inset-top);">
     <ion-buttons slot="start">
       <ion-menu-button autoHide="false" menu="admin-menu"></ion-menu-button>
     </ion-buttons>
@@ -10,12 +10,9 @@
 <ion-split-pane contentId="admin-content">
   <ion-menu contentId="admin-content" type="overlay" menuId="admin-menu">
     <ion-content>
+      <ion-item style="height: 100px; --background: transparent;"></ion-item>
       <ion-list>
         <ion-menu-toggle auto-hide="false">
-          <ion-item button routerLink="/admin/dashboard" routerDirection="root" lines="none">
-            <ion-icon slot="start" name="home"></ion-icon>
-            <ion-label>Dashboard</ion-label>
-          </ion-item>
           <ion-item button routerLink="/tabs/home" routerDirection="root" lines="none">
             <ion-icon slot="start" name="home-outline"></ion-icon>
             <ion-label>Inicio</ion-label>
@@ -50,3 +47,4 @@
   </ion-menu>
   <ion-router-outlet id="admin-content"></ion-router-outlet>
 </ion-split-pane>
+      <div style="height: 100px; padding-top: env(safe-area-inset-top);"></div>

@@ -1,2 +1,19 @@
 // For information on how to create your own theme, please see:
 // http://ionicframework.com/docs/theming/
+
+/* CSS Variables for Dark/Light Mode Text Colors */
+:root {
+  --text-color: #000000; /* Black text in light mode */
+  --text-color-secondary: #666666; /* Secondary text in light mode */
+  --text-color-light: #ffffff; /* White text for buttons/light backgrounds */
+  --card-background: rgba(255, 255, 255, 0.92); /* Light card background */
+  --card-border: #7ED957; /* Card border color */
+}
+
+body.dark {
+  --text-color: #ffffff; /* White text in dark mode */
+  --text-color-secondary: #cccccc; /* Secondary text in dark mode */
+  --text-color-light: #000000; /* Black text for buttons/light backgrounds */
+  --card-background: rgba(0, 0, 0, 0.8); /* Dark card background */
+  --card-border: #7ED957; /* Keep same card border color */
+}

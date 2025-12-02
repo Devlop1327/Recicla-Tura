@@ -155,6 +155,15 @@ export class MapaPage implements AfterViewInit {
       try { (this.map as L.Map).removeLayer(this.clientPolylines[recId]); } catch {}
       delete this.clientPolylines[recId];
     }
+    
+    // Cancelar y eliminar animaciones activas
+    const anim = this.clientAnim[recId];
+    if (anim?.raf) {
+      cancelAnimationFrame(anim.raf);
+    }
+    delete this.clientAnim[recId];
+    
+    console.log(`[MapaPage] Removed all layers and animations for recorrido ${recId}`);
   }
 
   ionViewWillEnter() {
@@ -276,6 +285,21 @@ export class MapaPage implements AfterViewInit {
         this.satLayer.addTo(map);
       }
     }
+  }
+
+  // Toggle de satélite para conductores/clientes
+  onToggleSat(ev: CustomEvent) {
+    const checked = (ev.detail as any)?.checked ?? false;
+    const next: 'map' | 'sat' = checked ? 'sat' : 'map';
+    const fakeEvent: CustomEvent = { detail: { value: next } } as any;
+    this.onBaseLayerChange(fakeEvent);
+  }
+
+  // Alternar rápidamente entre mapa normal y satélite (para botón flotante en móvil)
+  toggleBaseLayer() {
+    const next: 'map' | 'sat' = this.baseLayer() === 'map' ? 'sat' : 'map';
+    const fakeEvent: CustomEvent = { detail: { value: next } } as any;
+    this.onBaseLayerChange(fakeEvent);
   }
 
   onToggleRealTracking(ev: CustomEvent) {
@@ -410,6 +434,22 @@ export class MapaPage implements AfterViewInit {
         (this.map as L.Map).panTo(ll, { animate: true });
         // Persistir última posición para restauración (sincronizada con timers)
         try { this.persistLastConductorPos(recId, lat, lng); } catch {}
+        // Enviar posición en tiempo casi real a API, Supabase y canal de broadcast (con throttling)
+        try {
+          const now = Date.now();
+          if (recId && !recId.startsWith('local-') && (now - this.lastApiPosAtMs) >= this.MIN_API_POS_MS) {
+            this.lastApiPosAtMs = now;
+            try { await this.mapData.registrarPosicion(recId, lat, lng, vel); } catch {}
+          }
+          if ((now - this.lastSupaPosAtMs) >= this.MIN_SUPA_POS_MS) {
+            this.lastSupaPosAtMs = now;
+            try { await this.supabaseSvc.createUbicacion({ recorrido_id: recId, ruta_id: rutaId, lat, lng, velocidad: vel }); } catch {}
+            try {
+              const ch = this.supabaseSvc.getChannel('positions-broadcast');
+              await this.supabaseSvc.broadcastPosition(ch, { recorrido_id: recId, ruta_id: rutaId, lat, lng });
+            } catch {}
+          }
+        } catch {}
         // Auto-finish prompt if almost at the end of the route
         const end = this.simPath?.[this.simPath.length - 1];
         const distToEnd = end ? L.latLng(lat, lng).distanceTo(end) : Infinity;
@@ -593,16 +633,29 @@ export class MapaPage implements AfterViewInit {
     try {
       const recId: string = (rec as any)?.id;
       const rutaId: string | null = (rec as any)?.ruta_id || null;
+      
       if (rutaId) {
         this.selectedRutaId.set(rutaId);
         this.highlightSelectedRuta(rutaId);
       }
+      
+      // Cargar posiciones del recorrido
       const posiciones = await this.mapData.listarPosiciones(recId);
       if (Array.isArray(posiciones) && posiciones.length && this.map) {
         const pts = posiciones.map(p => L.latLng(p.lat, p.lng));
         this.drawClientPolyline(recId, pts);
         const last = pts[pts.length - 1];
         this.drawClientMarker(recId, last.lat, last.lng);
+        
+        // Si hay más de una posición, animar el movimiento del vehículo
+        if (pts.length > 1) {
+          const prev = pts[pts.length - 2];
+          this.animateClientMarker(recId, prev, last, this.estimateClientDurationMs(
+            posiciones[posiciones.length - 2] as any, 
+            posiciones[posiciones.length - 1] as any
+          ));
+        }
+        
         try {
           const bounds = L.latLngBounds(pts);
           (this.map as L.Map).fitBounds(bounds.pad(0.2));
@@ -743,6 +796,7 @@ export class MapaPage implements AfterViewInit {
   private realtimeChannel: any = null;
   private broadcastChannel: any = null;
   private clientPolylines: Record<string, L.Polyline> = {};
+  
   private async watchActiveRecorridosForClients() {
     const role = this.userRole();
     if (role === 'conductor') {
@@ -757,6 +811,17 @@ export class MapaPage implements AfterViewInit {
       }
       return;
     }
+    
+    // Limpiar canales existentes
+    if (this.realtimeChannel) {
+      try { await this.supabaseSvc.supabase.removeChannel(this.realtimeChannel); } catch {}
+      this.realtimeChannel = null;
+    }
+    if (this.broadcastChannel) {
+      try { await this.supabaseSvc.supabase.removeChannel(this.broadcastChannel); } catch {}
+      this.broadcastChannel = null;
+    }
+    
     // Semilla inicial: pintar recorridos activos completos y limpiar completados
     try {
       const recs = await this.mapData.loadRecorridos();
@@ -860,6 +925,63 @@ export class MapaPage implements AfterViewInit {
         }
       } catch {}
     })?.subscribe?.(() => {});
+
+    // Solo usar polling de la API para verificar recorridos completados
+    this.startCompletedRecorridosPolling();
+  }
+  
+  // Polling de respaldo para verificar recorridos completados
+  private startCompletedRecorridosPolling() {
+    // Limpiar timer existente si hay
+    if (this.completedRecorridosTimer) {
+      clearInterval(this.completedRecorridosTimer);
+    }
+    
+    this.completedRecorridosTimer = setInterval(async () => {
+      try {
+        const recs = await this.mapData.loadRecorridos();
+        const isCompleted = (s: string) => {
+          const estado = (s || '').toLowerCase();
+          return estado.includes('complet') || estado.includes('finali');
+        };
+        const isRunning = (s: string) => {
+          const estado = (s || '').toLowerCase();
+          return estado.includes('progreso') || estado.includes('curso');
+        };
+        
+        const completados = (recs || []).filter(r => isCompleted(r.estado));
+        
+        // Para cada recorrido completado, verificar si todavía tiene marcadores y eliminarlos
+        for (const r of completados) {
+          const recId = r.id as string;
+          if (this.clientMarkers[recId] || this.clientPolylines[recId]) {
+            console.log('[MapaPage] Polling: Removing completed recorrido markers:', recId);
+            this.removeClientLayers(recId);
+          }
+        }
+        
+        // Actualizar lista de recorridos activos
+        const activos = (recs || []).filter(r => isRunning(r.estado));
+        this.activeClientRecs.set(activos);
+        
+      } catch (error) {
+        console.warn('[MapaPage] Error in completed recorridos polling:', error);
+      }
+    }, 5000); 
+  }
+  
+  private completedRecorridosTimer: any = null;
+
+  // Refrescar la lista de recorridos activos del cliente
+  private async refreshActiveClientRecorridos() {
+    try {
+      const recs = await this.mapData.loadRecorridos();
+      const isRunning = (s: string) => (s || '').toLowerCase().includes('progreso') || (s || '').toLowerCase().includes('curso');
+      const activos = (recs || []).filter(r => isRunning(r.estado));
+      this.activeClientRecs.set(activos);
+    } catch (error) {
+      console.warn('[MapaPage] Error refreshing active client recorridos:', error);
+    }
   }
 
   private drawClientMarker(recId: string, lat: number, lng: number) {
@@ -911,25 +1033,242 @@ export class MapaPage implements AfterViewInit {
       this.drawClientMarker(recId, to.lat, to.lng);
       return;
     }
+    
     // Cancel previous animation
     const existing = this.clientAnim[recId];
     if (existing?.raf) cancelAnimationFrame(existing.raf);
+    
+    // Obtener la ruta seleccionada para interpolación precisa
+    const rutaCoords = this.getRouteCoordsForRecorrido(recId);
+    
     const start = performance.now();
     const duration = Math.max(300, durationMs || 1000);
+    
     const animate = (t: number) => {
       const el = this.clientAnim[recId];
       if (el && el.raf === null) return; // cancelled
+      
       const dt = Math.min(1, (t - start) / duration);
-      const lat = from.lat + (to.lat - from.lat) * dt;
-      const lng = from.lng + (to.lng - from.lng) * dt;
-      marker.setLatLng([lat, lng]);
+      
+      let currentLat: number;
+      let currentLng: number;
+      
+      // Si tenemos coordenadas de ruta, usar interpolación ajustada a la ruta
+      if (rutaCoords && rutaCoords.length > 1) {
+        const interpolated = this.interpolateAlongRoute(from, to, rutaCoords, dt);
+        currentLat = interpolated.lat;
+        currentLng = interpolated.lng;
+      } else {
+        // Fallback a interpolación lineal simple
+        currentLat = from.lat + (to.lat - from.lat) * dt;
+        currentLng = from.lng + (to.lng - from.lng) * dt;
+      }
+      
+      // Actualizar posición del marcador
+      marker.setLatLng([currentLat, currentLng]);
+      
+      // Seguir el vehículo con el mapa de forma suave
+      if (this.userRole() === 'cliente') {
+        this.followVehicleSmoothly([currentLat, currentLng]);
+      }
+      
       if (dt < 1) {
         this.clientAnim[recId].raf = requestAnimationFrame(animate);
       } else {
         this.clientAnim[recId].raf = null;
+        // Asegurar que el marcador termine exactamente en la posición objetivo
+        marker.setLatLng(to);
       }
     };
+    
     this.clientAnim[recId] = { from, to, start, duration, raf: requestAnimationFrame(animate) };
+  }
+  
+  // Obtener coordenadas de la ruta para un recorrido específico
+  private getRouteCoordsForRecorrido(recId: string): L.LatLng[] | null {
+    try {
+      const activeRec = this.activeClientRecs().find(r => r.id === recId);
+      if (activeRec?.ruta_id) {
+        // Si la ruta coincide con la seleccionada, usar las coordenadas cargadas
+        if (activeRec.ruta_id === this.selectedRutaId() && this.routeCoords.length > 0) {
+          return this.routeCoords;
+        }
+        
+        // Si no, intentar cargar las coordenadas de la ruta específica
+        const ruta = this.rutas().find(r => r.id === activeRec.ruta_id);
+        if (ruta) {
+          return this.extractCoordsFromRuta(ruta);
+        }
+      }
+    } catch (error) {
+      console.warn('Error getting route coords for recorrido:', error);
+    }
+    return null;
+  }
+  
+  // Extraer coordenadas de una ruta (función helper)
+  private extractCoordsFromRuta(ruta: any): L.LatLng[] | null {
+    try {
+      const shapeRaw: any = ruta?.shape ?? ruta?.shape_ruta ?? null;
+      if (!shapeRaw) return null;
+      
+      let geo: any = null;
+      try { 
+        geo = typeof shapeRaw === 'string' ? JSON.parse(shapeRaw) : shapeRaw; 
+      } catch { 
+        geo = null; 
+      }
+      if (!geo) return null;
+      
+      let line: GeoJSON.LineString | null = null;
+      if (geo.type === 'LineString') {
+        line = geo as GeoJSON.LineString;
+      } else if (geo.type === 'Feature' && geo.geometry?.type === 'LineString') {
+        line = geo.geometry as GeoJSON.LineString;
+      } else if (geo.type === 'FeatureCollection') {
+        const first = (geo.features || []).find((f: any) => f?.geometry?.type === 'LineString');
+        line = first?.geometry ?? null;
+      }
+      
+      if (!line || !Array.isArray(line.coordinates)) {
+        return null;
+      }
+      
+      return (line.coordinates || []).map(([lng, lat]) => L.latLng(lat, lng));
+    } catch (error) {
+      console.warn('Error extracting coords from ruta:', error);
+      return null;
+    }
+  }
+  
+  // Interpolar a lo largo de la ruta para un movimiento más realista
+  private interpolateAlongRoute(from: L.LatLng, to: L.LatLng, routeCoords: L.LatLng[], progress: number): L.LatLng {
+    if (routeCoords.length < 2) {
+      // Fallback a interpolación lineal
+      return L.latLng(
+        from.lat + (to.lat - from.lat) * progress,
+        from.lng + (to.lng - from.lng) * progress
+      );
+    }
+    
+    // Encontrar el segmento más cercano a la posición actual
+    const currentPos = L.latLng(
+      from.lat + (to.lat - from.lat) * progress,
+      from.lng + (to.lng - from.lng) * progress
+    );
+    
+    // Buscar los puntos de la ruta más cercanos
+    let closestSegment = 0;
+    let minDistance = Infinity;
+    
+    for (let i = 0; i < routeCoords.length - 1; i++) {
+      const segmentStart = routeCoords[i];
+      const segmentEnd = routeCoords[i + 1];
+      
+      // Calcular distancia del punto actual al segmento
+      const distance = this.pointToSegmentDistance(currentPos, segmentStart, segmentEnd);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestSegment = i;
+      }
+    }
+    
+    // Interpolar dentro del segmento encontrado
+    const segmentStart = routeCoords[closestSegment];
+    const segmentEnd = routeCoords[closestSegment + 1];
+    
+    // Proyectar el punto actual sobre el segmento
+    const projected = this.projectPointOnSegment(currentPos, segmentStart, segmentEnd);
+    
+    return projected;
+  }
+  
+  // Calcular distancia de punto a segmento de línea
+  private pointToSegmentDistance(point: L.LatLng, segmentStart: L.LatLng, segmentEnd: L.LatLng): number {
+    const A = point.lat - segmentStart.lat;
+    const B = point.lng - segmentStart.lng;
+    const C = segmentEnd.lat - segmentStart.lat;
+    const D = segmentEnd.lng - segmentStart.lng;
+    
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    
+    if (lenSq !== 0) {
+      param = dot / lenSq;
+    }
+    
+    let xx, yy;
+    
+    if (param < 0) {
+      xx = segmentStart.lat;
+      yy = segmentStart.lng;
+    } else if (param > 1) {
+      xx = segmentEnd.lat;
+      yy = segmentEnd.lng;
+    } else {
+      xx = segmentStart.lat + param * C;
+      yy = segmentStart.lng + param * D;
+    }
+    
+    const dx = point.lat - xx;
+    const dy = point.lng - yy;
+    
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  
+  // Proyectar punto sobre segmento de línea
+  private projectPointOnSegment(point: L.LatLng, segmentStart: L.LatLng, segmentEnd: L.LatLng): L.LatLng {
+    const A = point.lat - segmentStart.lat;
+    const B = point.lng - segmentStart.lng;
+    const C = segmentEnd.lat - segmentStart.lat;
+    const D = segmentEnd.lng - segmentStart.lng;
+    
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    
+    if (lenSq !== 0) {
+      param = Math.max(0, Math.min(1, dot / lenSq));
+    }
+    
+    return L.latLng(
+      segmentStart.lat + param * C,
+      segmentStart.lng + param * D
+    );
+  }
+  
+  // Seguir el vehículo suavemente con el mapa
+  private followVehicleSmoothly(position: L.LatLngExpression) {
+    if (!this.map) return;
+    
+    try {
+      // Obtener zoom actual y posición
+      const currentZoom = this.map.getZoom();
+      const currentCenter = this.map.getCenter();
+      const targetCenter = L.latLng(position);
+      
+      // Calcular distancia para decidir si hacer pan suave o instantáneo
+      const distance = currentCenter.distanceTo(targetCenter);
+      
+      // Si la distancia es grande, hacer pan suave
+      if (distance > 100) { // metros
+        this.map.panTo(targetCenter, {
+          animate: true,
+          duration: 1.0 // segundos
+        });
+      } else if (distance > 20) {
+        // Si está cerca pero no en el centro, hacer pan más rápido
+        this.map.panTo(targetCenter, {
+          animate: true,
+          duration: 0.5
+        });
+      }
+      // Si está muy centrado, no hacer nada para evitar movimientos innecesarios
+    } catch (error) {
+      console.warn('Error following vehicle:', error);
+    }
   }
 
   private estimateClientDurationMs(prev: { ts?: string; created_at?: string }, last: { ts?: string; created_at?: string }): number {
@@ -992,10 +1331,20 @@ export class MapaPage implements AfterViewInit {
       const lng = pos.coords.longitude;
       const ll: L.LatLngExpression = [lat, lng];
       if (!this.map) return;
-      if (this.selfMarker) {
-        this.selfMarker.setLatLng(ll);
+      // Para el conductor usamos solo el marcador del vehículo/recorrido (simMarker)
+      // para evitar mostrar dos carros. Los clientes siguen usando selfMarker.
+      if (this.userRole() === 'conductor') {
+        if (this.simMarker) {
+          this.simMarker.setLatLng(ll);
+        } else {
+          this.simMarker = L.marker(ll, { title: 'Vehículo', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
+        }
       } else {
-        this.selfMarker = L.marker(ll, { title: 'Mi ubicación', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
+        if (this.selfMarker) {
+          this.selfMarker.setLatLng(ll);
+        } else {
+          this.selfMarker = L.marker(ll, { title: 'Mi ubicación', icon: this.vehicleIcon ?? undefined }).addTo(this.map as L.Map);
+        }
       }
       (this.map as L.Map).panTo(ll, { animate: true });
     } catch {}
@@ -1032,6 +1381,10 @@ export class MapaPage implements AfterViewInit {
     if (this.broadcastChannel) {
       try { this.supabaseSvc.supabase.removeChannel(this.broadcastChannel); } catch {}
       this.broadcastChannel = null;
+    }
+    if (this.completedRecorridosTimer) {
+      clearInterval(this.completedRecorridosTimer);
+      this.completedRecorridosTimer = null;
     }
     if (this.map && this.onMapClick) {
       this.map.off('click', this.onMapClick as any);
@@ -1604,7 +1957,13 @@ export class MapaPage implements AfterViewInit {
 
   private drawRecorrido(posiciones: PosicionApiItem[]) {
     if (!this.map) return;
-    const latlngs = posiciones.map(p => [p.lat, p.lng] as [number, number]);
+    if (!posiciones || posiciones.length === 0) return;
+
+    const latlngs = posiciones
+      .filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
+      .map(p => [p.lat, p.lng] as [number, number]);
+
+    if (!latlngs.length) return;
 
     if (this.recorridoPolyline) {
       this.recorridoPolyline.setLatLngs(latlngs);
@@ -1613,7 +1972,7 @@ export class MapaPage implements AfterViewInit {
     }
 
     const last = posiciones[posiciones.length - 1];
-    if (last) {
+    if (last && typeof last.lat === 'number' && typeof last.lng === 'number') {
       const latlng: L.LatLngExpression = [last.lat, last.lng];
       if (this.recorridoMarker) {
         this.recorridoMarker.setLatLng(latlng);
