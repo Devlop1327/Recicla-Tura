@@ -206,94 +206,15 @@ export class MapDataService {
     try {
       this.loading.set(true);
       this.error.set(null);
-      // 0) Preferir Supabase primero para evitar CORS
-      const supaFirst = await this.loadRutasFromSupabaseGeojson();
-      if (supaFirst.length > 0) {
-        this.rutas.set(supaFirst);
-        return supaFirst;
-      }
-      console.log('[MapDataService] GET /rutas?perfil_id=', this.profileId);
-      let data: { data: RutaApiItem[] } | undefined;
-      try {
-        data = await firstValueFrom(
-          this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`, {
-            params: { perfil_id: this.profileId },
-          })
-        );
-      } catch (e: any) {
-        const status = e?.status;
-        console.warn('[MapDataService] Primer intento /rutas falló', {
-          status,
-          message: e?.message || e,
-        });
-        if (status && status >= 500) {
-          await new Promise((r) => setTimeout(r, 1500));
-          console.log(
-            '[MapDataService] Reintentando /rutas con perfil_id tras 1.5s...'
-          );
-          data = await firstValueFrom(
-            this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`, {
-              params: { perfil_id: this.profileId },
-            })
-          );
-        } else {
-          throw e;
-        }
-      }
-      const items = data?.data ?? [];
-      console.log(
-        '[MapDataService] /rutas (con perfil_id) ->',
-        items.length,
-        'items'
-      );
-      this.rutas.set(items);
-      // Si no hay rutas o vienen sin shape, intentar fallback Supabase view 'rutas_geojson'
-      const hasAnyShape = (items || []).some((r) => !!(r as any)?.shape);
-      if (!hasAnyShape) {
-        const supa = await this.loadRutasFromSupabaseGeojson();
-        if (supa.length > 0) {
-          this.rutas.set(supa);
-          return supa;
-        }
-      }
-      return items;
+      // Cargar únicamente desde Supabase
+      const supaRutas = await this.loadRutasFromSupabaseGeojson();
+      this.rutas.set(supaRutas);
+      return supaRutas;
     } catch (e: any) {
-      console.warn(
-        '[MapDataService] /rutas con perfil_id falló, intentando sin parámetro...',
-        { status: e?.status, message: e?.message || e }
-      );
-      try {
-        const data2 = await firstValueFrom(
-          this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`)
-        );
-        const items2 = data2?.data ?? [];
-        console.log(
-          '[MapDataService] /rutas (sin perfil_id) ->',
-          items2.length,
-          'items'
-        );
-        // Fallback a Supabase si no hay shape
-        const hasAnyShape2 = (items2 || []).some((r) => !!(r as any)?.shape);
-        if (!hasAnyShape2) {
-          const supa = await this.loadRutasFromSupabaseGeojson();
-          if (supa.length > 0) {
-            this.rutas.set(supa);
-            return supa;
-          }
-        }
-        this.rutas.set(items2);
-        return items2;
-      } catch (e2: any) {
-        const msg = e2?.message ?? 'Error al cargar rutas';
-        console.error('[MapDataService] /rutas error final:', e2);
-        this.error.set(msg);
-        const supa = await this.loadRutasFromSupabaseGeojson();
-        if (supa.length > 0) {
-          this.rutas.set(supa);
-          return supa;
-        }
-        return [];
-      }
+      const msg = e?.message ?? 'Error al cargar rutas';
+      console.error('[MapDataService] /rutas error:', e);
+      this.error.set(msg);
+      return [];
     } finally {
       this.loading.set(false);
     }
@@ -349,20 +270,25 @@ export class MapDataService {
 
   async getRuta(id: string): Promise<RutaApiItem | null> {
     try {
-      const data = await firstValueFrom(
-        this.http.get<{ data: RutaApiItem }>(`${this.baseUrl}/rutas/${id}`)
-      );
-      const rec = data?.data ?? null;
-      // Emitir señal realtime para que clientes refresquen
-      try {
-        const ch = this.recorridosChannel;
-        await ch?.send({
-          type: 'broadcast',
-          event: 'recorrido',
-          payload: { action: 'start', recorrido: rec },
-        });
-      } catch {}
-      return rec;
+      const { data, error } = await this.supabase.supabase
+        .from('rutas_geojson')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        console.error('[MapDataService] Error obteniendo ruta:', error);
+        return null;
+      }
+      
+      const ruta: RutaApiItem = {
+        id: data.id,
+        nombre: data.nombre,
+        descripcion: data.descripcion,
+        shape: data.shape,
+      };
+      
+      return ruta;
     } catch (e: any) {
       console.error('[MapDataService] Error al obtener ruta:', e?.error ?? e);
       return null;
@@ -376,66 +302,35 @@ export class MapDataService {
     callesIds?: string[];
   }): Promise<RutaApiItem | null> {
     try {
-      const body: any = {
-        // Enviar ambas variantes por compatibilidad
-        nombre: payload.nombre,
-        nombre_ruta: payload.nombre,
-        descripcion: payload.descripcion,
-        descripcion_ruta: payload.descripcion,
-        perfil_id: this.profileId,
-        shape: payload.shape ? JSON.stringify(payload.shape) : undefined,
-        shape_ruta: payload.shape ? JSON.stringify(payload.shape) : undefined,
-        calles:
-          payload.callesIds && payload.callesIds.length
-            ? payload.callesIds
-            : undefined,
+      // Crear directamente en Supabase
+      const { data, error } = await this.supabase.supabase
+        .from('rutas_geojson')
+        .insert({
+          nombre: payload.nombre,
+          descripcion: payload.descripcion || '',
+          shape: payload.shape ? JSON.stringify(payload.shape) : null,
+        })
+        .select('*')
+        .single();
+      
+      if (error) {
+        console.error('[MapDataService] Error creando ruta en Supabase:', error);
+        return null;
+      }
+      
+      const created: RutaApiItem = {
+        id: data.id,
+        nombre: data.nombre,
+        descripcion: data.descripcion,
+        shape: data.shape,
       };
-      console.log('[MapDataService] POST /rutas =>', body);
-      const resp = await firstValueFrom(
-        this.http.post<{ data: RutaApiItem }>(`${this.baseUrl}/rutas`, body)
-      );
-      let created: RutaApiItem | null = resp?.data ?? null;
-      console.log('[MapDataService] Ruta creada:', created);
-      if (!created) {
-        // Algunos backends no devuelven body; refrescar y buscar por nombre
-        const listado = await this.loadRutas();
-        created =
-          listado.find((r) => (r.nombre || r.nombre_ruta) === payload.nombre) ||
-          null;
-        console.log('[MapDataService] Ruta resuelta tras recarga:', created);
-      }
-      // Dual write a Supabase (RPC) si tenemos datos suficientes
-      try {
-        const gid = (created?.id ?? '').toString();
-        const gname = created?.nombre || created?.nombre_ruta || payload.nombre;
-        const gdesc =
-          created?.descripcion ||
-          created?.descripcion_ruta ||
-          payload.descripcion ||
-          '';
-        let gshape: any = null;
-        if (created?.shape) {
-          try {
-            gshape =
-              typeof created.shape === 'string'
-                ? JSON.parse(created.shape)
-                : created.shape;
-          } catch {
-            gshape = null;
-          }
-        }
-        if (!gshape && payload.shape) {
-          gshape = payload.shape;
-        }
-        if (gid && gname && gshape) {
-          await this.persistRutaToSupabase(gid, gname, gdesc, gshape);
-        }
-      } catch (rpcErr) {
-        console.warn(
-          '[MapDataService] RPC upsert_ruta_geojson falló tras crear ruta:',
-          rpcErr
-        );
-      }
+      
+      console.log('[MapDataService] Ruta creada en Supabase:', created);
+      
+      // Actualizar estado local
+      const curr = this.rutas();
+      this.rutas.set([created, ...curr]);
+      
       return created;
     } catch (e: any) {
       console.error('[MapDataService] Error creando ruta:', e?.error ?? e);
@@ -445,15 +340,27 @@ export class MapDataService {
 
   async deleteRuta(id: string): Promise<boolean> {
     try {
-      // Eliminar en Supabase (si existe). Si no existe (PGRST116), lo tratamos como éxito lógico.
+      // Eliminar de la vista/tabla rutas_geojson en Supabase
+      const { error: errorGeojson } = await this.supabase.supabase
+        .from('rutas_geojson')
+        .delete()
+        .eq('id', id);
+      
+      if (errorGeojson && errorGeojson.code !== 'PGRST116') {
+        console.error('[MapDataService] Error eliminando de rutas_geojson:', errorGeojson);
+      }
+      
+      // También eliminar de la tabla rutas por si existe allí
       const { error } = await this.supabase.deleteRuta(id);
       if (error && (error as any).code !== 'PGRST116') {
-        // Error real distinto a "0 filas"
         throw error;
       }
-      // Estado local
+      
+      // Actualizar estado local
       const curr = this.rutas();
       this.rutas.set((curr || []).filter((r) => r.id !== id));
+      
+      console.log('[MapDataService] Ruta eliminada exitosamente:', id);
       return true;
     } catch (e) {
       console.error('[MapDataService] deleteRuta error:', e);
@@ -466,100 +373,44 @@ export class MapDataService {
     updates: { nombre?: string; descripcion?: string; shape?: any }
   ): Promise<RutaApiItem | null> {
     try {
-      let updated: RutaApiItem | null = null;
-      const body: any = {
-        nombre: updates.nombre,
-        nombre_ruta: updates.nombre,
-        descripcion: updates.descripcion,
-        descripcion_ruta: updates.descripcion,
-        shape: updates.shape ? JSON.stringify(updates.shape) : undefined,
-        shape_ruta: updates.shape ? JSON.stringify(updates.shape) : undefined,
-        perfil_id: this.profileId,
-      };
-      try {
-        const resp = await firstValueFrom(
-          this.http.put<{ data: RutaApiItem }>(
-            `${this.baseUrl}/rutas/${id}`,
-            body
-          )
-        );
-        updated = resp?.data ?? null;
-      } catch (e) {
-        const { data, error } = await this.supabase.supabase
-          .from('rutas')
-          .update({
-            nombre: updates.nombre,
-            descripcion: updates.descripcion,
-            shape: updates.shape ? JSON.stringify(updates.shape) : undefined,
-          })
-          .eq('id', id)
-          .select('*')
-          .single();
-        if (error) throw error;
-        updated = data as any;
+      // Actualizar directamente en Supabase
+      const updateData: any = {};
+      if (updates.nombre !== undefined) updateData.nombre = updates.nombre;
+      if (updates.descripcion !== undefined) updateData.descripcion = updates.descripcion;
+      if (updates.shape !== undefined) updateData.shape = updates.shape ? JSON.stringify(updates.shape) : null;
+      
+      const { data, error } = await this.supabase.supabase
+        .from('rutas_geojson')
+        .update(updateData)
+        .eq('id', id)
+        .select('*')
+        .single();
+      
+      if (error) {
+        console.error('[MapDataService] Error actualizando ruta en Supabase:', error);
+        return null;
       }
+      
+      const updated: RutaApiItem = {
+        id: data.id,
+        nombre: data.nombre,
+        descripcion: data.descripcion,
+        shape: data.shape,
+      };
+      
+      console.log('[MapDataService] Ruta actualizada en Supabase:', updated);
+      
+      // Actualizar estado local
       const list = this.rutas();
       const next = (list || []).map((r) =>
-        r.id === id ? ({ ...r, ...updated } as any) : r
+        r.id === id ? updated : r
       );
       this.rutas.set(next);
-      // Dual write a Supabase (RPC)
-      try {
-        const gname =
-          updated?.nombre || updated?.nombre_ruta || updates.nombre || '';
-        const gdesc =
-          updated?.descripcion ||
-          updated?.descripcion_ruta ||
-          updates.descripcion ||
-          '';
-        let gshape: any = null;
-        const candShape = updated?.shape ?? updates.shape;
-        if (candShape) {
-          try {
-            gshape =
-              typeof candShape === 'string' ? JSON.parse(candShape) : candShape;
-          } catch {
-            gshape = null;
-          }
-        }
-        if (id && gname && gshape) {
-          await this.persistRutaToSupabase(id, gname, gdesc, gshape);
-        }
-      } catch (rpcErr) {
-        console.warn(
-          '[MapDataService] RPC upsert_ruta_geojson falló tras actualizar ruta:',
-          rpcErr
-        );
-      }
+      
       return updated;
-    } catch (e) {
+    } catch (e: any) {
       console.error('[MapDataService] updateRuta error:', e);
       return null;
-    }
-  }
-
-  private async persistRutaToSupabase(
-    id: string,
-    nombre: string,
-    descripcion: string,
-    shape: any
-  ) {
-    try {
-      const payload = {
-        p_id: id,
-        p_nombre: nombre,
-        p_descripcion: descripcion,
-        p_color: '#FF9800',
-        p_activa: true,
-        p_geojson: typeof shape === 'string' ? JSON.parse(shape) : shape,
-      };
-      const { error } = await this.supabase.supabase.rpc(
-        'upsert_ruta_geojson',
-        payload as any
-      );
-      if (error) throw error;
-    } catch (e) {
-      console.warn('[MapDataService] persistRutaToSupabase error:', e);
     }
   }
 
