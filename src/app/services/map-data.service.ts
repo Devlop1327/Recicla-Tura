@@ -535,7 +535,6 @@ export class MapDataService {
         )
       );
       const arr = Array.isArray(data?.data) ? data!.data : [];
-      // Mapear lon->lng si la API usa 'lon'
       return arr.map(
         (p: any) =>
           ({
@@ -548,7 +547,6 @@ export class MapDataService {
           } as PosicionApiItem)
       );
     } catch {
-      // Fallback: leer desde Supabase
       try {
         const { data, error } = await this.supabase.supabase
           .from('ubicaciones')
