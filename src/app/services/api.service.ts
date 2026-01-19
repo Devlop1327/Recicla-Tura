@@ -59,7 +59,7 @@ export interface UbicacionVehiculo {
 }
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class ApiService {
   private baseUrl = environment.api.baseUrl;
@@ -67,80 +67,62 @@ export class ApiService {
 
   constructor(private http: HttpClient, private supabase: SupabaseService) {}
 
-  // Obtener todas las rutas
+  // Obtener todas las rutas (solo desde Supabase)
   async getRutas(): Promise<Ruta[]> {
-    const url = `${this.baseUrl}rutas?perfil_id=${this.profileId}`;
-    console.log('API Service - Solicitando rutas desde:', url);
-    if (Capacitor.isNativePlatform()) {
-      const opts: HttpOptions = { url, method: 'GET', headers: { Accept: 'application/json' } };
-      const response = await CapacitorHttp.get(opts);
-      const body = response?.data;
-      if (Array.isArray(body)) return body as Ruta[];
-      if (body && Array.isArray(body.data)) return body.data as Ruta[];
+    try {
+      const { data, error } = await this.supabase.getRutas();
+      if (error) {
+        console.warn('ApiService.getRutas - error desde Supabase:', error);
+        return [];
+      }
+      return (Array.isArray(data) ? (data as any[]) : []) as Ruta[];
+    } catch (e) {
+      console.error('ApiService.getRutas - excepción:', e);
       return [];
     }
-    const response = await firstValueFrom(this.http.get<any>(url).pipe(timeout(12000), catchError(err => { console.warn('API getRutas error:', err?.status, err?.message); return throwError(() => err); })));
-    // Soportar respuesta paginada { data: Ruta[], ... } o directa Ruta[]
-    if (Array.isArray(response)) {
-      return response as Ruta[];
-    }
-    if (response && Array.isArray(response.data)) {
-      return response.data as Ruta[];
-    }
-    return [];
   }
 
-  // Obtener una ruta específica
+  // Obtener una ruta específica (solo desde Supabase)
   async getRuta(id: string): Promise<Ruta> {
-    const url = `${this.baseUrl}rutas/${id}?perfil_id=${this.profileId}`;
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
-      return (res?.data?.data as Ruta) ?? null as any;
-    }
-    const response = await firstValueFrom(this.http.get<{data: Ruta}>(url).pipe(timeout(12000)));
-    return response?.data as any;
-  }
-
-  // Obtener puntos de una ruta
-  async getPuntosRuta(rutaId: string): Promise<PuntoRuta[]> {
-    const url = `${this.baseUrl}rutas/${rutaId}/puntos?perfil_id=${this.profileId}`;
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
-      return (res?.data?.data as PuntoRuta[]) || [];
-    }
-    const response = await firstValueFrom(this.http.get<{data: PuntoRuta[]}>(url).pipe(timeout(12000)));
-    return response?.data || [];
-  }
-
-  // Obtener vehículos
-  async getVehiculos(): Promise<Vehiculo[]> {
-    const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
-    console.log('API Service - Solicitando vehículos desde:', url);
     try {
-      if (Capacitor.isNativePlatform()) {
-        const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
-        const data = (res?.data?.data as Vehiculo[]) || (Array.isArray(res?.data) ? (res?.data as Vehiculo[]) : []);
-        if (Array.isArray(data) && data.length > 0) return data;
-      } else {
-        const response = await firstValueFrom(
-          this.http.get<any>(url).pipe(
-            timeout(12000),
-            catchError(err => { console.warn('API getVehiculos error:', err?.status, err?.message); return throwError(() => err); })
-          )
-        );
-        if (Array.isArray(response)) return response as Vehiculo[];
-        if (response && Array.isArray(response.data)) return response.data as Vehiculo[];
+      const { data, error } = await this.supabase.getRuta(id);
+      if (error) {
+        console.warn('ApiService.getRuta - error desde Supabase:', error);
+        return null as any;
       }
+      return data as Ruta;
     } catch (e) {
-      // continue to fallback
+      console.error('ApiService.getRuta - excepción:', e);
+      return null as any;
     }
+  }
+
+  // Obtener puntos de una ruta (solo desde Supabase)
+  async getPuntosRuta(rutaId: string): Promise<PuntoRuta[]> {
+    try {
+      const { data, error } = await this.supabase.getPuntosRuta(rutaId);
+      if (error) {
+        console.warn('ApiService.getPuntosRuta - error desde Supabase:', error);
+        return [];
+      }
+      return (Array.isArray(data) ? (data as any[]) : []) as PuntoRuta[];
+    } catch (e) {
+      console.error('ApiService.getPuntosRuta - excepción:', e);
+      return [];
+    }
+  }
+
+  // Obtener vehículos (solo desde Supabase, sin API externa)
+  async getVehiculos(): Promise<Vehiculo[]> {
     try {
       const { data, error } = await this.supabase.getVehiculos();
       if (error) {
+        console.warn('ApiService.getVehiculos - error desde Supabase:', error);
         return [];
       }
-      return (data as any[]) as Vehiculo[];
-    } catch {
+      return (Array.isArray(data) ? (data as any[]) : []) as Vehiculo[];
+    } catch (e) {
+      console.error('ApiService.getVehiculos - excepción:', e);
       return [];
     }
   }
@@ -155,65 +137,40 @@ export class ApiService {
       velocidad: 0,
       direccion: 0,
       timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     });
   }
 
   // Obtener historial de ubicaciones de un vehículo
-  async getHistorialUbicaciones(vehiculoId: string, fechaInicio?: string, fechaFin?: string): Promise<UbicacionVehiculo[]> {
+  async getHistorialUbicaciones(
+    vehiculoId: string,
+    fechaInicio?: string,
+    fechaFin?: string
+  ): Promise<UbicacionVehiculo[]> {
     // Endpoint no disponible en API pública actual
-    console.warn('API Service - getHistorialUbicaciones no soportado por API. Retornando lista vacía.');
+    console.warn(
+      'API Service - getHistorialUbicaciones no soportado por API. Retornando lista vacía.'
+    );
     return Promise.resolve([]);
-  }
-
-  // --- CRUD de Vehículos ---
-  // Crear vehículo
-  async createVehiculo(payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>> & { perfil_id?: string }): Promise<Vehiculo> {
-    const url = `${this.baseUrl}vehiculos?perfil_id=${this.profileId}`;
-    const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId } as any;
-    console.log('API Service - Creando vehículo en:', url, body);
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: body });
-      const data = (res?.data as any);
-      return (data?.data ?? data) as Vehiculo;
-    }
-    const resp = await firstValueFrom(this.http.post<any>(url, body).pipe(timeout(12000)));
-    return (resp?.data ?? resp) as Vehiculo;
-  }
-
-  // Actualizar vehículo
-  async updateVehiculo(id: string, payload: Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>): Promise<Vehiculo> {
-    const url = `${this.baseUrl}vehiculos/${id}?perfil_id=${this.profileId}`;
-    console.log('API Service - Actualizando vehículo en:', url, payload);
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.put({ url, headers: { 'Content-Type': 'application/json' }, data: payload });
-      return (res?.data as Vehiculo) as any;
-    }
-    return await firstValueFrom(this.http.put<Vehiculo>(url, payload).pipe(timeout(12000)));
-  }
-
-  // Eliminar vehículo
-  async deleteVehiculo(id: string): Promise<any> {
-    const url = `${this.baseUrl}vehiculos/${id}?perfil_id=${this.profileId}`;
-    console.log('API Service - Eliminando vehículo en:', url);
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.delete({ url });
-      return res?.data;
-    }
-    return await firstValueFrom(this.http.delete<any>(url).pipe(timeout(12000)));
   }
 
   // Obtener calles
   async getCalles(): Promise<Calle[]> {
     const url = `${this.baseUrl}calles?perfil_id=${this.profileId}`;
     if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.get({ url, method: 'GET', headers: { Accept: 'application/json' } });
+      const res = await CapacitorHttp.get({
+        url,
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
       const resp = res?.data;
       if (Array.isArray(resp)) return resp as Calle[];
       if (resp && Array.isArray(resp.data)) return resp.data as Calle[];
       return [];
     }
-    const resp = await firstValueFrom(this.http.get<any>(url).pipe(timeout(12000)));
+    const resp = await firstValueFrom(
+      this.http.get<any>(url).pipe(timeout(12000))
+    );
     // Soporta formato [{...}] o { data: [{...}] }
     if (Array.isArray(resp)) return resp as Calle[];
     if (resp && Array.isArray(resp.data)) return resp.data as Calle[];
@@ -222,7 +179,9 @@ export class ApiService {
 
   // Buscar direcciones
   async buscarDirecciones(query: string): Promise<any[]> {
-    const url = `${this.baseUrl}buscar?q=${encodeURIComponent(query)}&perfil_id=${this.profileId}`;
+    const url = `${this.baseUrl}buscar?q=${encodeURIComponent(
+      query
+    )}&perfil_id=${this.profileId}`;
     if (Capacitor.isNativePlatform()) {
       const res = await CapacitorHttp.get({ url });
       return (res?.data as any[]) || [];
@@ -241,29 +200,48 @@ export class ApiService {
   }
 
   // Recorridos: iniciar
-  async iniciarRecorrido(payload: { ruta_id: string; vehiculo_id: string; perfil_id?: string }): Promise<any> {
+  async iniciarRecorrido(payload: {
+    ruta_id: string;
+    vehiculo_id: string;
+    perfil_id?: string;
+  }): Promise<any> {
     const url = `${this.baseUrl}recorridos/iniciar?perfil_id=${this.profileId}`;
     const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId };
     console.log('API Service - Iniciar recorrido:', url, body);
     if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: body });
+      const res = await CapacitorHttp.post({
+        url,
+        headers: { 'Content-Type': 'application/json' },
+        data: body,
+      });
       const data = res?.data as any;
       return data?.data ?? data;
     }
-    const resp = await firstValueFrom(this.http.post<any>(url, body).pipe(timeout(12000)));
+    const resp = await firstValueFrom(
+      this.http.post<any>(url, body).pipe(timeout(12000))
+    );
     return resp?.data ?? resp;
   }
 
   // Recorridos: registrar posición
-  async registrarPosicion(recorridoId: string, payload: { lat: number; lon: number; perfil_id?: string }): Promise<any> {
+  async registrarPosicion(
+    recorridoId: string,
+    payload: { lat: number; lon: number; perfil_id?: string }
+  ): Promise<any> {
     const url = `${this.baseUrl}recorridos/${recorridoId}/posiciones?perfil_id=${this.profileId}`;
     const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId };
     if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.post({ url, headers: { 'Content-Type': 'application/json' }, data: body });
+      const res = await CapacitorHttp.post({
+        url,
+        headers: { 'Content-Type': 'application/json' },
+        data: body,
+      });
       const data = res?.data as any;
       return data?.data ?? data;
     }
-    const resp = await firstValueFrom(this.http.post<any>(url, body).pipe(timeout(12000)));
+    const resp = await firstValueFrom(
+      this.http.post<any>(url, body).pipe(timeout(12000))
+    );
     return resp?.data ?? resp;
   }
 }

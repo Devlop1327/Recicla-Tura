@@ -3,7 +3,7 @@ import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class SupabaseService {
   public supabase: SupabaseClient;
@@ -44,14 +44,14 @@ export class SupabaseService {
   async signInWithEmail(email: string, password: string) {
     return await this.supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     });
   }
 
   async signUpWithEmail(email: string, password: string) {
     return await this.supabase.auth.signUp({
       email,
-      password
+      password,
     });
   }
 
@@ -62,7 +62,7 @@ export class SupabaseService {
   async getCurrentUser(): Promise<User | null> {
     // Cache de corta duración
     const now = Date.now();
-    if (this.cachedUser && (now - this.cachedUserAt) < this.userTtlMs) {
+    if (this.cachedUser && now - this.cachedUserAt < this.userTtlMs) {
       return this.cachedUser;
     }
     // Deduplicar llamadas paralelas
@@ -71,7 +71,10 @@ export class SupabaseService {
     }
     this.getUserInFlight = (async () => {
       try {
-        const { data: { user }, error } = await this.supabase.auth.getUser();
+        const {
+          data: { user },
+          error,
+        } = await this.supabase.auth.getUser();
         if (error) {
           console.warn('getCurrentUser error:', error);
         }
@@ -111,9 +114,12 @@ export class SupabaseService {
   // Recuperar contraseña: envía email de restablecimiento
   async resetPasswordForEmail(email: string) {
     try {
-      const { data, error } = await this.supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
-      });
+      const { data, error } = await this.supabase.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }
+      );
       return { data, error };
     } catch (error) {
       console.error('Error resetPasswordForEmail:', error);
@@ -128,13 +134,27 @@ export class SupabaseService {
       .select('*')
       .eq('id', userId)
       .single();
-    
+
     return { data, error };
   }
 
   // Listar perfiles con búsqueda y paginación
-  async listProfiles(params: { q?: string; limit?: number; offset?: number; orderBy?: string; ascending?: boolean } = {}) {
-    const { q, limit = 20, offset = 0, orderBy = 'created_at', ascending = false } = params;
+  async listProfiles(
+    params: {
+      q?: string;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      ascending?: boolean;
+    } = {}
+  ) {
+    const {
+      q,
+      limit = 20,
+      offset = 0,
+      orderBy = 'created_at',
+      ascending = false,
+    } = params;
     let query = this.supabase
       .from('profiles')
       .select('*', { count: 'exact' })
@@ -144,11 +164,18 @@ export class SupabaseService {
       // Buscar por email, full_name o phone si existen en el esquema
       const term = `%${q.trim()}%`;
       query = query.or(
-        ['email.ilike.' + term, 'full_name.ilike.' + term, 'phone.ilike.' + term].join(',')
+        [
+          'email.ilike.' + term,
+          'full_name.ilike.' + term,
+          'phone.ilike.' + term,
+        ].join(',')
       );
     }
 
-    const { data, error, count } = await query.range(offset, offset + limit - 1);
+    const { data, error, count } = await query.range(
+      offset,
+      offset + limit - 1
+    );
     return { data: data || [], error, count: count ?? 0 } as any;
   }
 
@@ -159,12 +186,15 @@ export class SupabaseService {
       .update(updates)
       .eq('id', userId)
       .select('*');
-    
+
     return { data, error };
   }
 
   // Actualizar solo el rol del perfil
-  async updateProfileRole(userId: string, role: 'admin' | 'conductor' | 'cliente') {
+  async updateProfileRole(
+    userId: string,
+    role: 'admin' | 'conductor' | 'cliente'
+  ) {
     const { data, error } = await this.supabase
       .from('profiles')
       .update({ role })
@@ -201,8 +231,8 @@ export class SupabaseService {
       const { data, error } = await this.supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/login`
-        }
+          emailRedirectTo: `${window.location.origin}/login`,
+        },
       });
       return { data, error } as any;
     } catch (error) {
@@ -211,7 +241,10 @@ export class SupabaseService {
   }
 
   // Asegurar que el perfil exista con el rol indicado usando upsert
-  async ensureProfileWithRole(userId: string, role: 'admin' | 'conductor' | 'cliente') {
+  async ensureProfileWithRole(
+    userId: string,
+    role: 'admin' | 'conductor' | 'cliente'
+  ) {
     try {
       const { data, error } = await this.supabase
         .from('profiles')
@@ -226,23 +259,42 @@ export class SupabaseService {
 
   // Obtener rutas
   async getRutas() {
+    const { data, error } = await this.supabase.from('rutas').select('*');
+
+    return { data, error };
+  }
+
+  // Obtener una ruta específica por id
+  async getRuta(id: string) {
     const { data, error } = await this.supabase
       .from('rutas')
-      .select('*');
-    
+      .select('*')
+      .eq('id', id)
+      .single();
+
     return { data, error };
   }
 
   // Crear ruta con GeoJSON (admin)
-  async createRutaGeoJson(payload: { nombre_ruta: string; perfil_id: string; shape: any; descripcion?: string | null; activa?: boolean }) {
+  async createRutaGeoJson(payload: {
+    nombre_ruta: string;
+    perfil_id: string;
+    shape: any;
+    descripcion?: string | null;
+    activa?: boolean;
+  }) {
     try {
       const row: any = {
         nombre: payload.nombre_ruta,
         perfil_id: payload.perfil_id,
         // almacenar GeoJSON como string si la columna es de tipo text; si es jsonb también funciona enviando el objeto
-        shape: typeof payload.shape === 'string' ? payload.shape : JSON.stringify(payload.shape),
+        shape:
+          typeof payload.shape === 'string'
+            ? payload.shape
+            : JSON.stringify(payload.shape),
       };
-      if (payload.descripcion !== undefined) row.descripcion = payload.descripcion;
+      if (payload.descripcion !== undefined)
+        row.descripcion = payload.descripcion;
       if (payload.activa !== undefined) row.activa = payload.activa;
 
       const { data, error } = await this.supabase
@@ -256,34 +308,120 @@ export class SupabaseService {
     }
   }
 
-  // Obtener vehículos (fallback cuando API externa no responde en móvil)
+  // Obtener vehículos
   async getVehiculos() {
     try {
-      const { data, error } = await this.supabase
-        .from('vehiculos')
-        .select('*');
+      const { data, error } = await this.supabase.from('vehiculos').select('*');
       return { data: data || [], error } as any;
     } catch (error) {
       return { data: [], error } as any;
     }
   }
 
+  // Crear vehículo (CRUD directo en Supabase)
+  async createVehiculo(payload: {
+    placa: string;
+    modelo?: string | null;
+    marca?: string | null;
+    activo?: boolean;
+    perfil_id?: string;
+  }) {
+    try {
+      const currentProfile = this.currentProfile();
+      const perfilId =
+        payload.perfil_id ?? (currentProfile?.id as string | undefined);
+
+      const row: any = {
+        placa: payload.placa,
+        modelo: payload.modelo ?? null,
+        marca: payload.marca ?? null,
+        activo: payload.activo ?? true,
+      };
+
+      if (perfilId) {
+        row.perfil_id = perfilId;
+      }
+
+      const { data, error } = await this.supabase
+        .from('vehiculos')
+        .insert(row)
+        .select('*')
+        .single();
+
+      return { data, error } as any;
+    } catch (error) {
+      return { data: null, error } as any;
+    }
+  }
+
+  // Actualizar vehículo
+  async updateVehiculo(
+    id: string,
+    payload: {
+      placa?: string;
+      modelo?: string | null;
+      marca?: string | null;
+      activo?: boolean;
+    }
+  ) {
+    try {
+      const updates: any = {};
+      if (payload.placa !== undefined) updates.placa = payload.placa;
+      if (payload.modelo !== undefined) updates.modelo = payload.modelo;
+      if (payload.marca !== undefined) updates.marca = payload.marca;
+      if (payload.activo !== undefined) updates.activo = payload.activo;
+
+      const { data, error } = await this.supabase
+        .from('vehiculos')
+        .update(updates)
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      return { data, error } as any;
+    } catch (error) {
+      return { data: null, error } as any;
+    }
+  }
+
+  // Eliminar vehículo
+  async deleteVehiculo(id: string) {
+    try {
+      const { data, error } = await this.supabase
+        .from('vehiculos')
+        .delete()
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      return { data, error } as any;
+    } catch (error) {
+      return { data: null, error } as any;
+    }
+  }
+
   // Eliminar ruta por id
   async deleteRuta(id: string) {
+    const { error } = await this.supabase.from('rutas').delete().eq('id', id);
+    // Supabase no devuelve cuerpo en DELETE por defecto; solo nos interesa si hay error
+    return { data: null, error } as any;
+  }
+
+  // Obtener puntos de una ruta desde Supabase
+  async getPuntosRuta(rutaId: string) {
     const { data, error } = await this.supabase
-      .from('rutas')
-      .delete()
-      .eq('id', id)
-      .select('*');
-    return { data, error } as any;
+      .from('puntos_ruta')
+      .select('*')
+      .eq('ruta_id', rutaId)
+      .order('orden', { ascending: true });
+
+    return { data, error };
   }
 
   // Obtener calles
   async getCalles() {
-    const { data, error } = await this.supabase
-      .from('calles')
-      .select('*');
-    
+    const { data, error } = await this.supabase.from('calles').select('*');
+
     return { data, error };
   }
 
@@ -299,19 +437,23 @@ export class SupabaseService {
 
   // Obtener ubicaciones
   async getUbicaciones() {
-    const { data, error } = await this.supabase
-      .from('ubicaciones')
-      .select('*');
-    
+    const { data, error } = await this.supabase.from('ubicaciones').select('*');
+
     return { data, error };
   }
 
-  async createUbicacion(row: { recorrido_id?: string | null; ruta_id?: string | null; lat: number; lng: number; velocidad?: number | null }) {
+  async createUbicacion(row: {
+    recorrido_id?: string | null;
+    ruta_id?: string | null;
+    lat: number;
+    lng: number;
+    velocidad?: number | null;
+  }) {
     try {
       // Ajustado al esquema actual: latitud/longitud, sin columna 'velocidad'
       const payload: any = {
         latitud: row.lat,
-        longitud: row.lng
+        longitud: row.lng,
       };
       if (row.ruta_id) payload.ruta_id = row.ruta_id;
       else if (row.recorrido_id) payload.recorrido_id = row.recorrido_id;
@@ -334,7 +476,7 @@ export class SupabaseService {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
-    
+
     return { data, error };
   }
 
@@ -343,7 +485,7 @@ export class SupabaseService {
     const { data, error } = await this.supabase
       .from('notificaciones')
       .insert(notificacion);
-    
+
     return { data, error };
   }
 
@@ -353,7 +495,7 @@ export class SupabaseService {
       .from('notificaciones')
       .update(updates)
       .eq('id', id);
-    
+
     return { data, error };
   }
 
@@ -361,8 +503,9 @@ export class SupabaseService {
   subscribeToRutas(callback: (payload: any) => void) {
     return this.supabase
       .channel('rutas')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'rutas' }, 
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rutas' },
         callback
       )
       .subscribe();
@@ -371,8 +514,9 @@ export class SupabaseService {
   subscribeToUbicaciones(callback: (payload: any) => void) {
     return this.supabase
       .channel('ubicaciones')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'ubicaciones' }, 
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ubicaciones' },
         callback
       )
       .subscribe();
@@ -383,7 +527,15 @@ export class SupabaseService {
     return this.supabase.channel(name);
   }
 
-  async broadcastPosition(channel: any, payload: { recorrido_id?: string; ruta_id?: string | null; lat: number; lng: number }) {
+  async broadcastPosition(
+    channel: any,
+    payload: {
+      recorrido_id?: string;
+      ruta_id?: string | null;
+      lat: number;
+      lng: number;
+    }
+  ) {
     try {
       await channel.send({ type: 'broadcast', event: 'pos', payload });
     } catch (e) {
@@ -438,7 +590,7 @@ export class SupabaseService {
           id: r.id,
           nombre: r.nombre ?? r.nombre_ruta ?? null,
           descripcion: r.descripcion ?? r.descripcion_ruta ?? null,
-          activa: r.activa ?? true
+          activa: r.activa ?? true,
         }));
         const { data, error } = await this.supabase
           .from('rutas')

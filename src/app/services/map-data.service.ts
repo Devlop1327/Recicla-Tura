@@ -83,7 +83,11 @@ export class MapDataService {
         this.http.get<{ data: CalleApiItem[] }>(`${this.baseUrl}/calles`)
       );
       const items = data?.data ?? [];
-      console.log('[MapDataService] /calles (API externo) ->', items.length, 'items');
+      console.log(
+        '[MapDataService] /calles (API externo) ->',
+        items.length,
+        'items'
+      );
       this.calles.set(items);
       return items;
     } catch (e: any) {
@@ -112,7 +116,11 @@ export class MapDataService {
           if (typeof r.shape === 'string') {
             shapeStr = r.shape;
           } else if (r.shape) {
-            try { shapeStr = JSON.stringify(r.shape); } catch { shapeStr = null; }
+            try {
+              shapeStr = JSON.stringify(r.shape);
+            } catch {
+              shapeStr = null;
+            }
           }
           if (!id || !shapeStr) return null;
           return { id, nombre, shape: shapeStr } as CalleApiItem;
@@ -125,11 +133,14 @@ export class MapDataService {
     }
   }
 
-  async createCalle(payload: { nombre: string; shape: any }): Promise<CalleApiItem | null> {
+  async createCalle(payload: {
+    nombre: string;
+    shape: any;
+  }): Promise<CalleApiItem | null> {
     try {
       const body: any = {
         nombre: payload.nombre,
-        shape: payload.shape ? JSON.stringify(payload.shape) : undefined
+        shape: payload.shape ? JSON.stringify(payload.shape) : undefined,
       };
       console.log('[MapDataService] POST /calles =>', body);
       const resp = await firstValueFrom(
@@ -139,8 +150,16 @@ export class MapDataService {
       if (created) {
         // Dual write a Supabase: guardar también la calle
         try {
-          const shapeStr = typeof created.shape === 'string' ? created.shape : (payload.shape ? JSON.stringify(payload.shape) : '');
-          await this.supabase.createCalle({ nombre: created.nombre ?? payload.nombre, shape: shapeStr });
+          const shapeStr =
+            typeof created.shape === 'string'
+              ? created.shape
+              : payload.shape
+              ? JSON.stringify(payload.shape)
+              : '';
+          await this.supabase.createCalle({
+            nombre: created.nombre ?? payload.nombre,
+            shape: shapeStr,
+          });
         } catch (e) {
           console.warn('[MapDataService] Dual write Supabase calle falló:', e);
         }
@@ -150,10 +169,16 @@ export class MapDataService {
       }
       return null;
     } catch (e: any) {
-      console.warn('[MapDataService] POST /calles falló, intentando Supabase...', e?.message || e);
+      console.warn(
+        '[MapDataService] POST /calles falló, intentando Supabase...',
+        e?.message || e
+      );
       try {
         const shapeStr = payload.shape ? JSON.stringify(payload.shape) : '';
-        const { data, error } = await this.supabase.createCalle({ nombre: payload.nombre, shape: shapeStr });
+        const { data, error } = await this.supabase.createCalle({
+          nombre: payload.nombre,
+          shape: shapeStr,
+        });
         if (error) {
           console.error('[MapDataService] Supabase createCalle error:', error);
           return null;
@@ -161,13 +186,16 @@ export class MapDataService {
         const created: CalleApiItem = {
           id: (data?.id ?? data?.uuid ?? data?.pk ?? '').toString(),
           nombre: data?.nombre ?? payload.nombre,
-          shape: typeof data?.shape === 'string' ? data.shape : shapeStr
+          shape: typeof data?.shape === 'string' ? data.shape : shapeStr,
         };
         const curr = this.calles();
         this.calles.set([created, ...curr]);
         return created;
       } catch (ex) {
-        console.error('[MapDataService] Fallback Supabase createCalle exception:', ex);
+        console.error(
+          '[MapDataService] Fallback Supabase createCalle exception:',
+          ex
+        );
         return null;
       }
     }
@@ -189,18 +217,23 @@ export class MapDataService {
       try {
         data = await firstValueFrom(
           this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`, {
-            params: { perfil_id: this.profileId }
+            params: { perfil_id: this.profileId },
           })
         );
       } catch (e: any) {
         const status = e?.status;
-        console.warn('[MapDataService] Primer intento /rutas falló', { status, message: e?.message || e });
+        console.warn('[MapDataService] Primer intento /rutas falló', {
+          status,
+          message: e?.message || e,
+        });
         if (status && status >= 500) {
           await new Promise((r) => setTimeout(r, 1500));
-          console.log('[MapDataService] Reintentando /rutas con perfil_id tras 1.5s...');
+          console.log(
+            '[MapDataService] Reintentando /rutas con perfil_id tras 1.5s...'
+          );
           data = await firstValueFrom(
             this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`, {
-              params: { perfil_id: this.profileId }
+              params: { perfil_id: this.profileId },
             })
           );
         } else {
@@ -208,10 +241,14 @@ export class MapDataService {
         }
       }
       const items = data?.data ?? [];
-      console.log('[MapDataService] /rutas (con perfil_id) ->', items.length, 'items');
+      console.log(
+        '[MapDataService] /rutas (con perfil_id) ->',
+        items.length,
+        'items'
+      );
       this.rutas.set(items);
       // Si no hay rutas o vienen sin shape, intentar fallback Supabase view 'rutas_geojson'
-      const hasAnyShape = (items || []).some(r => !!(r as any)?.shape);
+      const hasAnyShape = (items || []).some((r) => !!(r as any)?.shape);
       if (!hasAnyShape) {
         const supa = await this.loadRutasFromSupabaseGeojson();
         if (supa.length > 0) {
@@ -221,15 +258,22 @@ export class MapDataService {
       }
       return items;
     } catch (e: any) {
-      console.warn('[MapDataService] /rutas con perfil_id falló, intentando sin parámetro...', { status: e?.status, message: e?.message || e });
+      console.warn(
+        '[MapDataService] /rutas con perfil_id falló, intentando sin parámetro...',
+        { status: e?.status, message: e?.message || e }
+      );
       try {
         const data2 = await firstValueFrom(
           this.http.get<{ data: RutaApiItem[] }>(`${this.baseUrl}/rutas`)
         );
         const items2 = data2?.data ?? [];
-        console.log('[MapDataService] /rutas (sin perfil_id) ->', items2.length, 'items');
+        console.log(
+          '[MapDataService] /rutas (sin perfil_id) ->',
+          items2.length,
+          'items'
+        );
         // Fallback a Supabase si no hay shape
-        const hasAnyShape2 = (items2 || []).some(r => !!(r as any)?.shape);
+        const hasAnyShape2 = (items2 || []).some((r) => !!(r as any)?.shape);
         if (!hasAnyShape2) {
           const supa = await this.loadRutasFromSupabaseGeojson();
           if (supa.length > 0) {
@@ -266,20 +310,37 @@ export class MapDataService {
       if (error) {
         // View no disponible: intentar tabla 'rutas' básica y mapear si trae 'shape'
         try {
-          const { data: rutasBasic, error: errBasic } = await this.supabase.supabase
-            .from('rutas')
-            .select('id,nombre,descripcion,shape');
+          const { data: rutasBasic, error: errBasic } =
+            await this.supabase.supabase
+              .from('rutas')
+              .select('id,nombre,descripcion,shape');
           if (errBasic) {
             return [];
           }
           const rows = Array.isArray(rutasBasic) ? rutasBasic : [];
-          return rows.map((r: any) => ({ id: r.id, nombre: r.nombre, descripcion: r.descripcion, shape: r.shape } as RutaApiItem));
+          return rows.map(
+            (r: any) =>
+              ({
+                id: r.id,
+                nombre: r.nombre,
+                descripcion: r.descripcion,
+                shape: r.shape,
+              } as RutaApiItem)
+          );
         } catch {
           return [];
         }
       }
       const rows = Array.isArray(data) ? data : [];
-      return rows.map((r: any) => ({ id: r.id, nombre: r.nombre, descripcion: r.descripcion, shape: r.shape } as RutaApiItem));
+      return rows.map(
+        (r: any) =>
+          ({
+            id: r.id,
+            nombre: r.nombre,
+            descripcion: r.descripcion,
+            shape: r.shape,
+          } as RutaApiItem)
+      );
     } catch (e) {
       // Silencioso: no forzar error en consola si la vista no existe
       return [];
@@ -295,7 +356,11 @@ export class MapDataService {
       // Emitir señal realtime para que clientes refresquen
       try {
         const ch = this.recorridosChannel;
-        await ch?.send({ type: 'broadcast', event: 'recorrido', payload: { action: 'start', recorrido: rec } });
+        await ch?.send({
+          type: 'broadcast',
+          event: 'recorrido',
+          payload: { action: 'start', recorrido: rec },
+        });
       } catch {}
       return rec;
     } catch (e: any) {
@@ -304,7 +369,12 @@ export class MapDataService {
     }
   }
 
-  async createRuta(payload: { nombre: string; descripcion?: string; shape?: any; callesIds?: string[] }): Promise<RutaApiItem | null> {
+  async createRuta(payload: {
+    nombre: string;
+    descripcion?: string;
+    shape?: any;
+    callesIds?: string[];
+  }): Promise<RutaApiItem | null> {
     try {
       const body: any = {
         // Enviar ambas variantes por compatibilidad
@@ -315,7 +385,10 @@ export class MapDataService {
         perfil_id: this.profileId,
         shape: payload.shape ? JSON.stringify(payload.shape) : undefined,
         shape_ruta: payload.shape ? JSON.stringify(payload.shape) : undefined,
-        calles: payload.callesIds && payload.callesIds.length ? payload.callesIds : undefined
+        calles:
+          payload.callesIds && payload.callesIds.length
+            ? payload.callesIds
+            : undefined,
       };
       console.log('[MapDataService] POST /rutas =>', body);
       const resp = await firstValueFrom(
@@ -326,17 +399,30 @@ export class MapDataService {
       if (!created) {
         // Algunos backends no devuelven body; refrescar y buscar por nombre
         const listado = await this.loadRutas();
-        created = listado.find(r => (r.nombre || r.nombre_ruta) === payload.nombre) || null;
+        created =
+          listado.find((r) => (r.nombre || r.nombre_ruta) === payload.nombre) ||
+          null;
         console.log('[MapDataService] Ruta resuelta tras recarga:', created);
       }
       // Dual write a Supabase (RPC) si tenemos datos suficientes
       try {
         const gid = (created?.id ?? '').toString();
         const gname = created?.nombre || created?.nombre_ruta || payload.nombre;
-        const gdesc = created?.descripcion || created?.descripcion_ruta || payload.descripcion || '';
+        const gdesc =
+          created?.descripcion ||
+          created?.descripcion_ruta ||
+          payload.descripcion ||
+          '';
         let gshape: any = null;
         if (created?.shape) {
-          try { gshape = typeof created.shape === 'string' ? JSON.parse(created.shape) : created.shape; } catch { gshape = null; }
+          try {
+            gshape =
+              typeof created.shape === 'string'
+                ? JSON.parse(created.shape)
+                : created.shape;
+          } catch {
+            gshape = null;
+          }
         }
         if (!gshape && payload.shape) {
           gshape = payload.shape;
@@ -345,7 +431,10 @@ export class MapDataService {
           await this.persistRutaToSupabase(gid, gname, gdesc, gshape);
         }
       } catch (rpcErr) {
-        console.warn('[MapDataService] RPC upsert_ruta_geojson falló tras crear ruta:', rpcErr);
+        console.warn(
+          '[MapDataService] RPC upsert_ruta_geojson falló tras crear ruta:',
+          rpcErr
+        );
       }
       return created;
     } catch (e: any) {
@@ -356,19 +445,15 @@ export class MapDataService {
 
   async deleteRuta(id: string): Promise<boolean> {
     try {
-      // Intento API externa
-      try {
-        await firstValueFrom(
-          this.http.delete(`${this.baseUrl}/rutas/${id}`, { params: { perfil_id: this.profileId } })
-        );
-      } catch (e) {
-        // Fallback Supabase
-        const { error } = await this.supabase.deleteRuta(id);
-        if (error) throw error;
+      // Eliminar en Supabase (si existe). Si no existe (PGRST116), lo tratamos como éxito lógico.
+      const { error } = await this.supabase.deleteRuta(id);
+      if (error && (error as any).code !== 'PGRST116') {
+        // Error real distinto a "0 filas"
+        throw error;
       }
       // Estado local
       const curr = this.rutas();
-      this.rutas.set((curr || []).filter(r => r.id !== id));
+      this.rutas.set((curr || []).filter((r) => r.id !== id));
       return true;
     } catch (e) {
       console.error('[MapDataService] deleteRuta error:', e);
@@ -376,7 +461,10 @@ export class MapDataService {
     }
   }
 
-  async updateRuta(id: string, updates: { nombre?: string; descripcion?: string; shape?: any }): Promise<RutaApiItem | null> {
+  async updateRuta(
+    id: string,
+    updates: { nombre?: string; descripcion?: string; shape?: any }
+  ): Promise<RutaApiItem | null> {
     try {
       let updated: RutaApiItem | null = null;
       const body: any = {
@@ -386,17 +474,24 @@ export class MapDataService {
         descripcion_ruta: updates.descripcion,
         shape: updates.shape ? JSON.stringify(updates.shape) : undefined,
         shape_ruta: updates.shape ? JSON.stringify(updates.shape) : undefined,
-        perfil_id: this.profileId
+        perfil_id: this.profileId,
       };
       try {
         const resp = await firstValueFrom(
-          this.http.put<{ data: RutaApiItem }>(`${this.baseUrl}/rutas/${id}`, body)
+          this.http.put<{ data: RutaApiItem }>(
+            `${this.baseUrl}/rutas/${id}`,
+            body
+          )
         );
         updated = resp?.data ?? null;
       } catch (e) {
         const { data, error } = await this.supabase.supabase
           .from('rutas')
-          .update({ nombre: updates.nombre, descripcion: updates.descripcion, shape: updates.shape ? JSON.stringify(updates.shape) : undefined })
+          .update({
+            nombre: updates.nombre,
+            descripcion: updates.descripcion,
+            shape: updates.shape ? JSON.stringify(updates.shape) : undefined,
+          })
           .eq('id', id)
           .select('*')
           .single();
@@ -404,22 +499,37 @@ export class MapDataService {
         updated = data as any;
       }
       const list = this.rutas();
-      const next = (list || []).map(r => (r.id === id ? { ...r, ...updated } as any : r));
+      const next = (list || []).map((r) =>
+        r.id === id ? ({ ...r, ...updated } as any) : r
+      );
       this.rutas.set(next);
       // Dual write a Supabase (RPC)
       try {
-        const gname = updated?.nombre || updated?.nombre_ruta || updates.nombre || '';
-        const gdesc = updated?.descripcion || updated?.descripcion_ruta || updates.descripcion || '';
+        const gname =
+          updated?.nombre || updated?.nombre_ruta || updates.nombre || '';
+        const gdesc =
+          updated?.descripcion ||
+          updated?.descripcion_ruta ||
+          updates.descripcion ||
+          '';
         let gshape: any = null;
         const candShape = updated?.shape ?? updates.shape;
         if (candShape) {
-          try { gshape = typeof candShape === 'string' ? JSON.parse(candShape) : candShape; } catch { gshape = null; }
+          try {
+            gshape =
+              typeof candShape === 'string' ? JSON.parse(candShape) : candShape;
+          } catch {
+            gshape = null;
+          }
         }
         if (id && gname && gshape) {
           await this.persistRutaToSupabase(id, gname, gdesc, gshape);
         }
       } catch (rpcErr) {
-        console.warn('[MapDataService] RPC upsert_ruta_geojson falló tras actualizar ruta:', rpcErr);
+        console.warn(
+          '[MapDataService] RPC upsert_ruta_geojson falló tras actualizar ruta:',
+          rpcErr
+        );
       }
       return updated;
     } catch (e) {
@@ -428,7 +538,12 @@ export class MapDataService {
     }
   }
 
-  private async persistRutaToSupabase(id: string, nombre: string, descripcion: string, shape: any) {
+  private async persistRutaToSupabase(
+    id: string,
+    nombre: string,
+    descripcion: string,
+    shape: any
+  ) {
     try {
       const payload = {
         p_id: id,
@@ -436,9 +551,12 @@ export class MapDataService {
         p_descripcion: descripcion,
         p_color: '#FF9800',
         p_activa: true,
-        p_geojson: typeof shape === 'string' ? JSON.parse(shape) : shape
+        p_geojson: typeof shape === 'string' ? JSON.parse(shape) : shape,
       };
-      const { error } = await this.supabase.supabase.rpc('upsert_ruta_geojson', payload as any);
+      const { error } = await this.supabase.supabase.rpc(
+        'upsert_ruta_geojson',
+        payload as any
+      );
       if (error) throw error;
     } catch (e) {
       console.warn('[MapDataService] persistRutaToSupabase error:', e);
@@ -451,11 +569,16 @@ export class MapDataService {
       this.loading.set(true);
       this.error.set(null);
       const data = await firstValueFrom(
-        this.http.get<{ data?: RecorridoApiItem[] } | RecorridoApiItem[]>(`${this.baseUrl}/misrecorridos`, {
-          params: { perfil_id: this.profileId }
-        })
+        this.http.get<{ data?: RecorridoApiItem[] } | RecorridoApiItem[]>(
+          `${this.baseUrl}/misrecorridos`,
+          {
+            params: { perfil_id: this.profileId },
+          }
+        )
       );
-      const items = Array.isArray(data) ? (data as RecorridoApiItem[]) : (data?.data ?? []);
+      const items = Array.isArray(data)
+        ? (data as RecorridoApiItem[])
+        : data?.data ?? [];
       this.recorridos.set(items);
       return items;
     } catch (e: any) {
@@ -466,11 +589,18 @@ export class MapDataService {
     }
   }
 
-  async iniciarRecorrido(rutaId: string, vehiculoId?: string): Promise<RecorridoApiItem | null> {
+  async iniciarRecorrido(
+    rutaId: string,
+    vehiculoId?: string
+  ): Promise<RecorridoApiItem | null> {
     try {
       console.log('[MapDataService] POST /recorridos/iniciar', {
         url: `${this.baseUrl}/recorridos/iniciar`,
-        body: { ruta_id: rutaId, vehiculo_id: vehiculoId, perfil_id: this.profileId }
+        body: {
+          ruta_id: rutaId,
+          vehiculo_id: vehiculoId,
+          perfil_id: this.profileId,
+        },
       });
       const data = await firstValueFrom(
         this.http.post<{ data: RecorridoApiItem }>(
@@ -478,13 +608,16 @@ export class MapDataService {
           {
             ruta_id: rutaId,
             vehiculo_id: vehiculoId,
-            perfil_id: this.profileId
+            perfil_id: this.profileId,
           }
         )
       );
       return data?.data ?? null;
     } catch (e: any) {
-      console.warn('[MapDataService] POST /recorridos no disponible (quizá 404). Funcionalidad no soportada por la API pública.', e?.message || e);
+      console.warn(
+        '[MapDataService] POST /recorridos no disponible (quizá 404). Funcionalidad no soportada por la API pública.',
+        e?.message || e
+      );
       return null;
     }
   }
@@ -493,7 +626,7 @@ export class MapDataService {
     try {
       console.log('[MapDataService] POST /recorridos/{id}/finalizar', {
         url: `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
-        body: { perfil_id: this.profileId }
+        body: { perfil_id: this.profileId },
       });
       await firstValueFrom(
         this.http.post(
@@ -505,11 +638,18 @@ export class MapDataService {
       // Emitir señal realtime para que clientes refresquen
       try {
         const ch = this.recorridosChannel;
-        await ch?.send({ type: 'broadcast', event: 'recorrido', payload: { action: 'finish', recorridoId } });
+        await ch?.send({
+          type: 'broadcast',
+          event: 'recorrido',
+          payload: { action: 'finish', recorridoId },
+        });
       } catch {}
       return true;
     } catch (e: any) {
-      console.warn('[MapDataService] finalizarRecorrido con perfil_id falló, reintentando sin body...', e?.message || e);
+      console.warn(
+        '[MapDataService] finalizarRecorrido con perfil_id falló, reintentando sin body...',
+        e?.message || e
+      );
       try {
         await firstValueFrom(
           this.http.post(
@@ -520,7 +660,10 @@ export class MapDataService {
         );
         return true;
       } catch (e2: any) {
-        console.warn('[MapDataService] POST /recorridos/{id}/finalizar falló definitivamente:', e2?.message || e2);
+        console.warn(
+          '[MapDataService] POST /recorridos/{id}/finalizar falló definitivamente:',
+          e2?.message || e2
+        );
         return false;
       }
     }
@@ -533,20 +676,26 @@ export class MapDataService {
     }
     try {
       const data = await firstValueFrom(
-        this.http.get<{ data: any[] }>(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
-          params: { perfil_id: this.profileId } as any
-        })
+        this.http.get<{ data: any[] }>(
+          `${this.baseUrl}/recorridos/${recorridoId}/posiciones`,
+          {
+            params: { perfil_id: this.profileId } as any,
+          }
+        )
       );
       const arr = Array.isArray(data?.data) ? data!.data : [];
       // Mapear lon->lng si la API usa 'lon'
-      return arr.map((p: any) => ({
-        id: p.id,
-        recorrido_id: p.recorrido_id,
-        lat: p.lat,
-        lng: p.lng ?? p.lon,
-        velocidad: p.velocidad,
-        timestamp: p.timestamp || p.created_at || new Date().toISOString()
-      } as PosicionApiItem));
+      return arr.map(
+        (p: any) =>
+          ({
+            id: p.id,
+            recorrido_id: p.recorrido_id,
+            lat: p.lat,
+            lng: p.lng ?? p.lon,
+            velocidad: p.velocidad,
+            timestamp: p.timestamp || p.created_at || new Date().toISOString(),
+          } as PosicionApiItem)
+      );
     } catch {
       // Fallback: leer desde Supabase
       try {
@@ -557,34 +706,50 @@ export class MapDataService {
           .order('created_at', { ascending: true });
         if (error) return [];
         const rows = Array.isArray(data) ? data : [];
-        return rows.map((r: any) => ({
-          id: r.id,
-          recorrido_id: r.recorrido_id ?? recorridoId,
-          lat: (r.lat ?? r.latitud) as number,
-          lng: (r.lng ?? r.longitud) as number,
-          velocidad: r.velocidad ?? null,
-          timestamp: r.created_at || r.updated_at || new Date().toISOString()
-        } as PosicionApiItem)).filter(p => typeof p.lat === 'number' && typeof p.lng === 'number');
+        return rows
+          .map(
+            (r: any) =>
+              ({
+                id: r.id,
+                recorrido_id: r.recorrido_id ?? recorridoId,
+                lat: (r.lat ?? r.latitud) as number,
+                lng: (r.lng ?? r.longitud) as number,
+                velocidad: r.velocidad ?? null,
+                timestamp:
+                  r.created_at || r.updated_at || new Date().toISOString(),
+              } as PosicionApiItem)
+          )
+          .filter(
+            (p) => typeof p.lat === 'number' && typeof p.lng === 'number'
+          );
       } catch {
         return [];
       }
     }
   }
 
-  async registrarPosicion(recorridoId: string, lat: number, lng: number, velocidad?: number) {
+  async registrarPosicion(
+    recorridoId: string,
+    lat: number,
+    lng: number,
+    velocidad?: number
+  ) {
     try {
-      console.log('[MapDataService] registrarPosicion -> intentando enviar a API', {
-        recorridoId,
-        lat,
-        lng,
-        velocidad
-      });
+      console.log(
+        '[MapDataService] registrarPosicion -> intentando enviar a API',
+        {
+          recorridoId,
+          lat,
+          lng,
+          velocidad,
+        }
+      );
       await firstValueFrom(
         this.http.post(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
           lat,
           lon: lng,
           perfil_id: this.profileId,
-          velocidad
+          velocidad,
         })
       );
       console.log('[MapDataService] registrarPosicion -> OK');

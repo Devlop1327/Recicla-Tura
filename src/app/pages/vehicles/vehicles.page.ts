@@ -1,23 +1,23 @@
-import { Component, signal, OnInit } from '@angular/core';
+import { Component, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { 
-  IonContent, 
-  IonHeader, 
-  IonTitle, 
-  IonToolbar, 
-  IonCard, 
-  IonCardHeader, 
-  IonCardTitle, 
-  IonCardContent, 
-  IonItem, 
-  IonLabel, 
-  IonInput, 
-  IonButton, 
-  IonIcon, 
-  IonList, 
-  IonGrid, 
-  IonRow, 
-  IonCol, 
+import {
+  IonContent,
+  IonHeader,
+  IonTitle,
+  IonToolbar,
+  IonCard,
+  IonCardHeader,
+  IonCardTitle,
+  IonCardContent,
+  IonItem,
+  IonLabel,
+  IonInput,
+  IonButton,
+  IonIcon,
+  IonList,
+  IonGrid,
+  IonRow,
+  IonCol,
   IonBadge,
   IonText,
   IonButtons,
@@ -25,10 +25,22 @@ import {
   IonToggle,
   IonSpinner,
   AlertController,
-  AlertButton
+  AlertButton,
 } from '@ionic/angular/standalone';
 import { FormsModule } from '@angular/forms';
-import { ApiService, Vehiculo } from '../../services/api.service';
+import { SupabaseService } from '../../services/supabase.service';
+
+interface Vehiculo {
+  id?: string;
+  placa: string;
+  modelo: string | null;
+  estado?: 'disponible' | 'en_ruta' | 'mantenimiento' | string;
+  marca: string | null;
+  activo: boolean;
+  perfil_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 @Component({
   selector: 'app-vehicles',
@@ -36,45 +48,49 @@ import { ApiService, Vehiculo } from '../../services/api.service';
   styleUrls: ['./vehicles.page.scss'],
   standalone: true,
   imports: [
-    CommonModule, 
+    CommonModule,
     FormsModule,
-    IonHeader, 
-    IonToolbar, 
-    IonTitle, 
-    IonContent, 
-    IonCard, 
-    IonCardHeader, 
-    IonCardTitle, 
-    IonCardContent, 
-    IonItem, 
-    IonLabel, 
-    IonInput, 
-    IonButton, 
-    IonIcon, 
-    IonList, 
-    IonGrid, 
-    IonRow, 
-    IonCol, 
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonCard,
+    IonCardHeader,
+    IonCardTitle,
+    IonCardContent,
+    IonItem,
+    IonLabel,
+    IonInput,
+    IonButton,
+    IonIcon,
+    IonList,
+    IonGrid,
+    IonRow,
+    IonCol,
     IonBadge,
     IonText,
     IonButtons,
     IonNote,
     IonToggle,
-    IonSpinner
-  ]
+    IonSpinner,
+  ],
 })
 export class VehiclesPage implements OnInit {
   vehiculos = signal<Vehiculo[]>([]);
   isLoading = signal(false);
   // Form alineado con API externa
-  form = signal<Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>>({ placa: '', modelo: '', marca: '', activo: true });
+  form = signal<
+    Partial<Pick<Vehiculo, 'placa' | 'modelo' | 'marca' | 'activo'>>
+  >({ placa: '', modelo: '', marca: '', activo: true });
   editingId: string | null = null;
   showFormErrors = false;
 
+  isAdmin = computed(() => this.supabase.currentRole() === 'admin');
+
   constructor(
-    private api: ApiService,
+    private supabase: SupabaseService,
     private alertCtrl: AlertController
-  ) { }
+  ) {}
 
   ngOnInit(): void {
     this.loadVehiculos();
@@ -84,23 +100,46 @@ export class VehiclesPage implements OnInit {
     this.isLoading.set(true);
     try {
       console.log('Cargando vehículos...');
-      const v = await this.api.getVehiculos();
-      console.log('Vehículos cargados:', v);
-      this.vehiculos.set(Array.isArray(v) ? v : []);
+      const { data, error } = await this.supabase.getVehiculos();
+      if (error) {
+        console.error('Error cargando vehículos desde Supabase:', error);
+        await this.showAlert(
+          'Error',
+          'No se pudieron cargar los vehículos. Por favor, intente de nuevo.'
+        );
+        this.vehiculos.set([]);
+        return;
+      }
+      console.log('Vehículos cargados:', data);
+      this.vehiculos.set(Array.isArray(data) ? (data as Vehiculo[]) : []);
     } catch (err) {
       console.error('Error cargando vehículos:', err);
-      await this.showAlert('Error', 'No se pudieron cargar los vehículos. Por favor, intente de nuevo.');
+      await this.showAlert(
+        'Error',
+        'No se pudieron cargar los vehículos. Por favor, intente de nuevo.'
+      );
     } finally {
       this.isLoading.set(false);
     }
   }
 
   async save() {
+    if (!this.isAdmin()) {
+      await this.showAlert(
+        'Sin permisos',
+        'Solo un administrador puede crear o editar vehículos.'
+      );
+      return;
+    }
+
     const payload = this.form();
-    
+
     // Validaciones
     if (!payload.placa || !payload.modelo) {
-      await this.showAlert('Error', 'Por favor complete todos los campos requeridos');
+      await this.showAlert(
+        'Error',
+        'Por favor complete todos los campos requeridos'
+      );
       return;
     }
 
@@ -109,29 +148,40 @@ export class VehiclesPage implements OnInit {
       if (wasEditing) {
         const id = this.editingId as string;
         console.log('Actualizando vehículo:', id, payload);
-        await this.api.updateVehiculo(id, payload);
+        await this.supabase.updateVehiculo(id, {
+          placa: payload.placa!,
+          modelo: payload.modelo ?? null,
+          marca: payload.marca ?? null,
+          activo: payload.activo ?? true,
+        });
       } else {
         console.log('Creando nuevo vehículo:', payload);
-        await this.api.createVehiculo(payload);
+        await this.supabase.createVehiculo({
+          placa: payload.placa!,
+          modelo: payload.modelo ?? null,
+          marca: payload.marca ?? null,
+          activo: payload.activo ?? true,
+        });
       }
-      
+
       // Resetear formulario
       this.resetForm();
-      
+
       // Recargar lista
       await this.loadVehiculos();
-      
+
       // Mostrar mensaje de éxito
       await this.showAlert(
-        '¡Éxito!', 
+        '¡Éxito!',
         `Vehículo ${wasEditing ? 'editado' : 'creado'} correctamente`
       );
-      
     } catch (error) {
       console.error('Error guardando vehículo:', error);
       await this.showAlert(
-        'Error', 
-        `No se pudo ${this.editingId ? 'editar' : 'crear'} el vehículo. Por favor, intente de nuevo.`
+        'Error',
+        `No se pudo ${
+          this.editingId ? 'editar' : 'crear'
+        } el vehículo. Por favor, intente de nuevo.`
       );
     }
   }
@@ -146,15 +196,15 @@ export class VehiclesPage implements OnInit {
   // Método para manejar la edición de un vehículo
   edit(veh: Vehiculo) {
     if (!veh.id) return;
-    
+
     this.editingId = veh.id;
-    this.form.set({ 
-      placa: veh.placa || '', 
-      modelo: veh.modelo || '', 
-      marca: veh.marca || '', 
-      activo: !!veh.activo
+    this.form.set({
+      placa: veh.placa || '',
+      modelo: veh.modelo || '',
+      marca: veh.marca || '',
+      activo: !!veh.activo,
     });
-    
+
     // Desplazarse al formulario
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -181,11 +231,15 @@ export class VehiclesPage implements OnInit {
   }
 
   // Método auxiliar para mostrar alertas
-  private async showAlert(header: string, message: string, buttons: (string | AlertButton)[] = ['OK']) {
+  private async showAlert(
+    header: string,
+    message: string,
+    buttons: (string | AlertButton)[] = ['OK']
+  ) {
     const alert = await this.alertCtrl.create({
       header,
       message,
-      buttons
+      buttons,
     });
     await alert.present();
   }
@@ -197,41 +251,53 @@ export class VehiclesPage implements OnInit {
 
   // Sin ruta en el modelo expuesto por la API externa
 
-
   async confirmRemove(veh: Vehiculo) {
     if (!veh.id) return;
-    
+
+    if (!this.isAdmin()) {
+      await this.showAlert(
+        'Sin permisos',
+        'Solo un administrador puede eliminar vehículos.'
+      );
+      return;
+    }
+
     const alert = await this.alertCtrl.create({
       header: 'Confirmar eliminación',
       message: `¿Está seguro de eliminar el vehículo ${veh.placa}?`,
       buttons: [
         {
           text: 'Cancelar',
-          role: 'cancel'
+          role: 'cancel',
         },
         {
           text: 'Eliminar',
           handler: async () => {
             try {
-              await this.api.deleteVehiculo(veh.id!);
-              
+              await this.supabase.deleteVehiculo(veh.id!);
+
               // Si el vehículo eliminado es el que se está editando, limpiar el formulario
               if (this.editingId === veh.id) {
                 this.resetForm();
               }
-              
+
               // Recargar la lista
               await this.loadVehiculos();
-              
-              await this.showAlert('Eliminado', 'El vehículo ha sido eliminado correctamente');
-              
+
+              await this.showAlert(
+                'Eliminado',
+                'El vehículo ha sido eliminado correctamente'
+              );
             } catch (error) {
               console.error('Error eliminando vehículo:', error);
-              await this.showAlert('Error', 'No se pudo eliminar el vehículo. Por favor, intente de nuevo.');
+              await this.showAlert(
+                'Error',
+                'No se pudo eliminar el vehículo. Por favor, intente de nuevo.'
+              );
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     });
     await alert.present();
   }
