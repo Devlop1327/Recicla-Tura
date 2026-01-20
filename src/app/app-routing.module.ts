@@ -8,97 +8,134 @@ export const routes: Routes = [
   {
     path: '',
     redirectTo: 'login',
-    pathMatch: 'full'
+    pathMatch: 'full',
   },
   {
     path: 'login',
-    component: LoginPage
+    component: LoginPage,
   },
   {
     path: 'recover',
-    loadComponent: () => import('./pages/recover/recover.page').then(m => m.RecoverPage)
+    loadComponent: () =>
+      import('./pages/recover/recover.page').then((m) => m.RecoverPage),
   },
   {
     path: 'reset-password',
-    loadComponent: () => import('./pages/reset-password/reset-password.page').then(m => m.ResetPasswordPage)
+    loadComponent: () =>
+      import('./pages/reset-password/reset-password.page').then(
+        (m) => m.ResetPasswordPage
+      ),
   },
   {
     path: 'tabs',
-    loadComponent: () => import('./tabs/tabs.page').then(m => m.TabsPage),
+    loadComponent: () => import('./tabs/tabs.page').then((m) => m.TabsPage),
     canActivate: [AuthGuard],
     children: [
       {
         path: 'home',
-        loadComponent: () => import('./pages/home/home.page').then(m => m.HomePage)
+        loadComponent: () =>
+          import('./pages/home/home.page').then((m) => m.HomePage),
       },
       {
         path: 'profile',
-        loadComponent: () => import('./pages/profile/profile.page').then(m => m.ProfilePage)
+        loadComponent: () =>
+          import('./pages/profile/profile.page').then((m) => m.ProfilePage),
       },
       {
         path: 'notifications',
-        loadComponent: () => import('./pages/notifications/notifications.page').then(m => m.NotificationsPage)
+        loadComponent: () =>
+          import('./pages/notifications/notifications.page').then(
+            (m) => m.NotificationsPage
+          ),
       },
       {
         path: 'vehicles',
-        loadComponent: () => import('./pages/vehicles/vehicles.page').then(m => m.VehiclesPage),
+        loadComponent: () =>
+          import('./pages/vehicles/vehicles.page').then((m) => m.VehiclesPage),
         canActivate: [roleGuard],
-        data: { roles: ['admin'] }
+        data: { roles: ['admin'] },
       },
       {
         path: '',
         redirectTo: 'home',
-        pathMatch: 'full'
-      }
-    ]
+        pathMatch: 'full',
+      },
+    ],
   },
   {
     path: 'conductor',
-    loadChildren: () => import('./conductor/conductor.routes').then(m => m.CONDUCTOR_ROUTES),
+    loadChildren: () =>
+      import('./conductor/conductor.routes').then((m) => m.CONDUCTOR_ROUTES),
     canMatch: [roleMatchGuard],
-    data: { roles: ['conductor', 'admin'] }
+    data: { roles: ['conductor', 'admin'] },
   },
   {
     path: 'admin',
-    loadComponent: () => import('./pages/admin/shell/admin.page').then(m => m.AdminPage),
+    loadComponent: () =>
+      import('./pages/admin/shell/admin.page').then((m) => m.AdminPage),
     canMatch: [roleMatchGuard],
     data: { roles: ['admin'] },
     children: [
       {
         path: '',
         redirectTo: 'dashboard',
-        pathMatch: 'full'
+        pathMatch: 'full',
       },
       {
         path: 'dashboard',
-        loadComponent: () => import('./pages/admin/dashboard/admin-dashboard.page').then(m => m.AdminDashboardPage)
+        loadComponent: () =>
+          import('./pages/admin/dashboard/admin-dashboard.page').then(
+            (m) => m.AdminDashboardPage
+          ),
       },
       {
         path: 'users',
-        loadComponent: () => import('./pages/admin/users/admin-users.page').then(m => m.AdminUsersPage)
+        loadComponent: () =>
+          import('./pages/admin/users/admin-users.page').then(
+            (m) => m.AdminUsersPage
+          ),
       },
       {
         path: 'routes',
-        loadComponent: () => import('./pages/admin/routes/admin-routes.page').then(m => m.AdminRoutesPage)
+        loadComponent: () =>
+          import('./pages/admin/routes/admin-routes.page').then(
+            (m) => m.AdminRoutesPage
+          ),
       },
       {
         path: 'vehicles',
-        loadComponent: () => import('./pages/admin/vehicles/admin-vehicles.page').then(m => m.AdminVehiclesPage)
+        loadComponent: () =>
+          import('./pages/admin/vehicles/admin-vehicles.page').then(
+            (m) => m.AdminVehiclesPage
+          ),
       },
       {
         path: 'settings',
-        loadComponent: () => import('./pages/admin/settings/admin-settings.page').then(m => m.AdminSettingsPage)
-      }
-    ]
+        loadComponent: () =>
+          import('./pages/admin/settings/admin-settings.page').then(
+            (m) => m.AdminSettingsPage
+          ),
+      },
+    ],
   },
   {
     path: 'mapa',
-    loadComponent: () => import('./pages/mapa/mapa.page').then(m => m.MapaPage),
+    loadComponent: () =>
+      import('./pages/mapa/mapa.page').then((m) => m.MapaPage),
     canActivate: [roleGuard],
-    data: { roles: ['admin','conductor','cliente'] }
+    data: { roles: ['admin', 'conductor', 'cliente'] },
+  },
+  {
+    path: 'rutas-horarios',
+    loadComponent: () =>
+      import('./pages/rutas-horarios/rutas-horarios.page').then(
+        (m) => m.RutasHorariosPage
+      ),
+    canActivate: [roleGuard],
+    data: { roles: ['admin', 'conductor', 'cliente'] },
   },
   {
     path: '**',
-    redirectTo: '/login'
-  }
+    redirectTo: '/login',
+  },
 ];

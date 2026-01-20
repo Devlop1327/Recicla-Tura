@@ -20,11 +20,13 @@
                 }
               </ion-col>
               <ion-col class="logo-col" size="auto">
-                <ion-img src="assets/icon/Logo.png" class="app-logo" alt="Logo"></ion-img>
+                <ion-img
+                  src="assets/icon/Logo.png"
+                  class="app-logo"
+                  alt="Logo"
+                ></ion-img>
               </ion-col>
             </ion-row>
-            
-            
           </ion-card-content>
         </ion-card>
       </ion-col>
@@ -77,9 +79,9 @@
                 >
               </ion-col>
               <ion-col size="auto">
-                <ion-button color="primary" (click)="go('/mapa')">
+                <ion-button color="primary" (click)="go('/rutas-horarios')">
                   <ion-icon slot="start" name="map"></ion-icon>
-                  Ver en mapa
+                  Ver rutas y mapa
                 </ion-button>
               </ion-col>
             </ion-row>
@@ -91,15 +93,13 @@
             <ion-card-subtitle>Rutas y horarios</ion-card-subtitle>
           </ion-card-header>
           <ion-card-content>
-            <ion-text color="medium"
-              >Consulta el mapa para ver tu recorrido asignado.</ion-text
-            >
+            <ion-text color="medium">Consulta las rutas y horarios.</ion-text>
             <ion-button
               fill="clear"
               size="small"
-              (click)="go('/mapa')"
+              (click)="go('/rutas-horarios')"
               class="ion-margin-top"
-              >Abrir mapa</ion-button
+              >Abrir rutas</ion-button
             >
           </ion-card-content>
         </ion-card>
@@ -124,20 +124,21 @@
     </ion-row>
     }
 
-    <!-- Botón para abrir la página del mapa de Buenaventura (oculto para cliente) -->
+    <!-- Botón para abrir la pantalla de rutas y horarios (oculto para cliente) -->
     @if (role() !== 'cliente') {
     <ion-row class="open-map-action ion-padding-horizontal ion-padding-bottom">
       <ion-col size="12">
-        <ion-button expand="block" color="primary" (click)="goToMapa()">
+        <ion-button
+          expand="block"
+          color="primary"
+          (click)="go('/rutas-horarios')"
+        >
           <ion-icon slot="start" name="map-outline"></ion-icon>
-          Ver Mapa de Buenaventura
+          Ver rutas y horarios
         </ion-button>
-        
       </ion-col>
     </ion-row>
     }
-
-   
 
     <!-- Lista de vehículos -->
     <ion-row class="vehicles-section">
@@ -156,74 +157,52 @@
                 >
               </ion-col>
             </ion-row>
-            } @else {
-
-              @for (vehiculo of vehiclesForDisplay(); track vehiculo.id) {
-              <ion-card class="vehicle-card">
-                <ion-item lines="none" detail="false">
-                  <ion-avatar slot="start">
-                    <ion-icon name="car" color="primary"></ion-icon>
-                  </ion-avatar>
-                  <ion-label class="veh-info">
-                    <ion-text class="veh-placa">{{ vehiculo.placa }}</ion-text>
-                    <ion-text class="veh-modelo">{{ vehiculo.modelo }}</ion-text>
-                    <ion-text class="veh-marca">{{ vehiculo.marca || 'Sin marca' }}</ion-text>
-                  </ion-label>
-                  <ion-label slot="end" class="veh-meta">
-                    @if (getUbicacionVehiculo(vehiculo.id)) {
-                      <ion-text class="meta-row">
-                        <ion-text class="speed">🚛 {{ getUbicacionVehiculo(vehiculo.id)!.velocidad }} km/h</ion-text>
-                      </ion-text>
-                      <ion-badge [color]="estadoVehiculo(vehiculo).color">{{ estadoVehiculo(vehiculo).text }}</ion-badge>
-                    } @else {
-                      <ion-badge color="danger">Sin ubicación</ion-badge>
-                    }
-                  </ion-label>
-                </ion-item>
-              </ion-card>
-              } @empty {
-              <ion-row class="empty-state" justify-content-center>
-                <ion-col size="12" class="ion-text-center">
-                  <ion-icon
-                    name="car-outline"
-                    size="large"
-                    color="medium"
-                  ></ion-icon>
-                  <ion-text>No hay vehículos activos en esta ruta</ion-text>
-                </ion-col>
-              </ion-row>
-              }
-              }
-          </ion-card-content>
-        </ion-card>
-      </ion-col>
-    </ion-row>
-
-    <!-- Selector de rutas (oculto para conductor) -->
-    @if (role() !== 'conductor') {
-    <ion-row class="routes-section">
-      <ion-col size="12">
-        <ion-card>
-          <ion-card-header>
-            <ion-card-title>🗺️ Rutas Disponibles</ion-card-title>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-row class="routes-list">
-              @for (ruta of topRutas(); track ruta.id) {
-              <ion-chip
-                [color]="selectedRuta()?.id === ruta.id ? 'primary' : 'medium'"
-                (click)="selectRuta(ruta)"
-                class="route-chip"
-              >
-                <ion-icon name="location" slot="start"></ion-icon>
-                <ion-label>{{ ruta.nombre }}</ion-label>
-              </ion-chip>
-              }
+            } @else { @for (vehiculo of vehiclesForDisplay(); track vehiculo.id)
+            {
+            <ion-card class="vehicle-card">
+              <ion-item lines="none" detail="false">
+                <ion-avatar slot="start">
+                  <ion-icon name="car" color="primary"></ion-icon>
+                </ion-avatar>
+                <ion-label class="veh-info">
+                  <ion-text class="veh-placa">{{ vehiculo.placa }}</ion-text>
+                  <ion-text class="veh-modelo">{{ vehiculo.modelo }}</ion-text>
+                  <ion-text class="veh-marca"
+                    >{{ vehiculo.marca || 'Sin marca' }}</ion-text
+                  >
+                </ion-label>
+                <ion-label slot="end" class="veh-meta">
+                  @if (getUbicacionVehiculo(vehiculo.id)) {
+                  <ion-text class="meta-row">
+                    <ion-text class="speed"
+                      >🚛 {{ getUbicacionVehiculo(vehiculo.id)!.velocidad }}
+                      km/h</ion-text
+                    >
+                  </ion-text>
+                  <ion-badge [color]="estadoVehiculo(vehiculo).color"
+                    >{{ estadoVehiculo(vehiculo).text }}</ion-badge
+                  >
+                  } @else {
+                  <ion-badge color="danger">Sin ubicación</ion-badge>
+                  }
+                </ion-label>
+              </ion-item>
+            </ion-card>
+            } @empty {
+            <ion-row class="empty-state" justify-content-center>
+              <ion-col size="12" class="ion-text-center">
+                <ion-icon
+                  name="car-outline"
+                  size="large"
+                  color="medium"
+                ></ion-icon>
+                <ion-text>No hay vehículos activos en esta ruta</ion-text>
+              </ion-col>
             </ion-row>
+            } }
           </ion-card-content>
         </ion-card>
       </ion-col>
     </ion-row>
-    }
   </ion-grid>
 </ion-content>

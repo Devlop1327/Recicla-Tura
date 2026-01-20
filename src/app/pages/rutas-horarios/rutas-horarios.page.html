@@ -1,0 +1,84 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/home"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Rutas y horarios</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-grid class="ion-padding">
+    <ion-row>
+      <ion-col size="12">
+        <ion-text color="medium">
+          Consulta los horarios de recoleccin y las rutas que pasan por tu zona.
+        </ion-text>
+      </ion-col>
+    </ion-row>
+
+    <ion-row class="ion-margin-top">
+      <ion-col size="12">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>Sin horario definido</ion-card-title>
+            <ion-card-subtitle>Rutas asignadas:</ion-card-subtitle>
+          </ion-card-header>
+          <ion-card-content>
+            <ng-container *ngIf="!isLoading(); else loadingTpl">
+              <ion-row>
+                <ion-col
+                  size="12"
+                  class="ion-text-center"
+                  *ngIf="rutas().length === 0"
+                >
+                  <ion-text color="medium">No hay rutas asignadas.</ion-text>
+                </ion-col>
+                <ion-col
+                  size="12"
+                  class="chips-container"
+                  *ngIf="rutas().length > 0"
+                >
+                  <ion-chip
+                    *ngFor="let ruta of rutas()"
+                    (click)="selectRuta(ruta)"
+                    class="ruta-chip"
+                  >
+                    <ion-label>{{ ruta.nombre }}</ion-label>
+                  </ion-chip>
+                </ion-col>
+              </ion-row>
+            </ng-container>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+
+    <ion-row class="ion-margin-top" *ngIf="selectedRuta() as sel">
+      <ion-col size="12">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-title>{{ sel.nombre }}</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            <p *ngIf="$any(sel).descripcion">{{ $any(sel).descripcion }}</p>
+            <p *ngIf="$any(sel).horario">Horario: {{ $any(sel).horario }}</p>
+            <p
+              *ngIf="!$any(sel).horario"
+              class="ion-text-center"
+              color="medium"
+            >
+              Sin horario definido para esta ruta.
+            </p>
+          </ion-card-content>
+        </ion-card>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+
+  <ng-template #loadingTpl>
+    <ion-row class="ion-justify-content-center ion-padding">
+      <ion-spinner class="ion-margin"></ion-spinner>
+    </ion-row>
+  </ng-template>
+</ion-content>
