@@ -171,7 +171,6 @@ export class ApiService {
     const resp = await firstValueFrom(
       this.http.get<any>(url).pipe(timeout(12000))
     );
-    // Soporta formato [{...}] o { data: [{...}] }
     if (Array.isArray(resp)) return resp as Calle[];
     if (resp && Array.isArray(resp.data)) return resp.data as Calle[];
     return [];

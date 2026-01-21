@@ -36,6 +36,66 @@ export class SupabaseService {
     this.loadCurrentUserAndProfile();
   }
 
+  // Horarios de rutas (admin)
+  // Tabla sugerida en Supabase: ruta_horarios(id, ruta_id, dias_semana text[], hora_inicio time, hora_fin time, activo bool)
+
+  async listHorariosRuta() {
+    const { data, error } = await this.supabase
+      .from('ruta_horarios')
+      .select('*')
+      .order('hora_inicio', { ascending: true });
+    return { data: (data || []) as any[], error } as any;
+  }
+
+  async createHorarioRuta(payload: {
+    ruta_id: string;
+    dias_semana: string[];
+    hora_inicio: string;
+    hora_fin?: string | null;
+    activo?: boolean;
+  }) {
+    const row: any = {
+      ruta_id: payload.ruta_id,
+      dias_semana: payload.dias_semana,
+      hora_inicio: payload.hora_inicio,
+      hora_fin: payload.hora_fin ?? null,
+      activo: payload.activo ?? true,
+    };
+    const { data, error } = await this.supabase
+      .from('ruta_horarios')
+      .insert(row)
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
+  async updateHorarioRuta(
+    id: string,
+    updates: {
+      ruta_id?: string;
+      dias_semana?: string[];
+      hora_inicio?: string;
+      hora_fin?: string | null;
+      activo?: boolean;
+    }
+  ) {
+    const { data, error } = await this.supabase
+      .from('ruta_horarios')
+      .update(updates as any)
+      .eq('id', id)
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
+  async deleteHorarioRuta(id: string) {
+    const { error } = await this.supabase
+      .from('ruta_horarios')
+      .delete()
+      .eq('id', id);
+    return { data: null, error } as any;
+  }
+
   setCurrentRole(role: 'admin' | 'conductor' | 'cliente' | null) {
     this.currentRole.set(role);
   }

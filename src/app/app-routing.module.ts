@@ -103,6 +103,10 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'schedules',
+        loadComponent: () => import('./pages/admin/schedules/admin-schedules.page').then(m => m.AdminSchedulesPage)
+      },
+      {
         path: 'vehicles',
         loadComponent: () =>
           import('./pages/admin/vehicles/admin-vehicles.page').then(

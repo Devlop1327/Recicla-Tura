@@ -1,0 +1,190 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button autoHide="false" menu="admin-menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Horarios de rutas</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="onRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <ion-list inset>
+    @for (h of horarios(); track h.id) {
+      <ion-item-sliding>
+        <ion-item>
+          <ion-label>
+            <h2>{{ nombreRuta(h.ruta_id) }}</h2>
+            <p>{{ labelDias(h.dias_semana) }}</p>
+            <p>{{ formatHora12(h.hora_inicio) }} - {{ h.hora_fin ? formatHora12(h.hora_fin) : '—' }}</p>
+          </ion-label>
+          <ion-buttons slot="end">
+            <ion-button fill="clear" color="medium" (click)="edit(h)">
+              <ion-icon name="create-outline"></ion-icon>
+            </ion-button>
+            <ion-button fill="clear" color="danger" (click)="confirmDelete(h)">
+              <ion-icon name="trash-outline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-item>
+        <ion-item-options side="start">
+          <ion-item-option color="medium" (click)="edit(h)">
+            <ion-icon slot="start" name="create-outline"></ion-icon>
+            Editar
+          </ion-item-option>
+        </ion-item-options>
+        <ion-item-options side="end">
+          <ion-item-option color="danger" (click)="confirmDelete(h)">
+            <ion-icon slot="start" name="trash-outline"></ion-icon>
+            Eliminar
+          </ion-item-option>
+        </ion-item-options>
+      </ion-item-sliding>
+    }
+    @if ((horarios() || []).length === 0) {
+      <ion-item lines="none">
+        <ion-label>No hay horarios definidos</ion-label>
+      </ion-item>
+    }
+  </ion-list>
+
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button color="primary" (click)="create()" aria-label="Nuevo horario">
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
+  <!-- Formulario en modal para crear/editar horario -->
+  <ion-modal [isOpen]="formOpen()" (didDismiss)="closeForm()">
+    <ng-template>
+      <ion-header translucent="true">
+        <ion-toolbar>
+          <ion-title>{{ editing() ? 'Editar horario' : 'Nuevo horario' }}</ion-title>
+          <ion-buttons slot="end">
+            <ion-button fill="clear" color="medium" (click)="closeForm()">Cerrar</ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+
+      <ion-content class="ion-padding">
+        <ion-card>
+          <ion-card-header>
+            <ion-card-subtitle>Configuración</ion-card-subtitle>
+            <ion-card-title>Ruta y días</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-item lines="full">
+              <ion-label position="stacked">Ruta</ion-label>
+              <ion-select
+                interface="popover"
+                [value]="form().ruta_id"
+                (ionChange)="updateForm({ ruta_id: $event.detail.value })">
+                @for (r of rutas(); track r.id) {
+                  <ion-select-option [value]="r.id">
+                    {{ r.nombre || r.nombre_ruta }}
+                  </ion-select-option>
+                }
+              </ion-select>
+            </ion-item>
+
+            <ion-item lines="full">
+              <ion-label position="stacked">Días de la semana</ion-label>
+              <ion-select
+                multiple="true"
+                interface="popover"
+                [value]="form().dias_semana"
+                (ionChange)="updateForm({ dias_semana: $event.detail.value })">
+                @for (d of dias; track d.value) {
+                  <ion-select-option [value]="d.value">{{ d.label }}</ion-select-option>
+                }
+              </ion-select>
+            </ion-item>
+          </ion-card-content>
+        </ion-card>
+
+        <ion-card>
+          <ion-card-header>
+            <ion-card-subtitle>Franja horaria</ion-card-subtitle>
+            <ion-card-title>Hora de inicio y fin</ion-card-title>
+          </ion-card-header>
+          <ion-card-content>
+            <ion-grid>
+              <ion-row>
+                <ion-col size="12" size-md="6">
+                  <ion-item lines="full">
+                    <ion-label position="stacked">Hora inicio</ion-label>
+                    <div class="time-select-row">
+                      <ion-select
+                        interface="popover"
+                        [value]="horaInicioHora()"
+                        (ionChange)="onHoraInicioHoraChange($event)">
+                        @for (h of horas; track h) {
+                          <ion-select-option [value]="h">{{ h }}</ion-select-option>
+                        }
+                      </ion-select>
+                      <ion-select
+                        interface="popover"
+                        [value]="horaInicioMinuto()"
+                        (ionChange)="onHoraInicioMinutoChange($event)">
+                        @for (m of minutos; track m) {
+                          <ion-select-option [value]="m">{{ m }}</ion-select-option>
+                        }
+                      </ion-select>
+                    </div>
+                    <ion-note slot="helper" color="medium">
+                      {{ formatHora12(form().hora_inicio) }}
+                    </ion-note>
+                  </ion-item>
+                </ion-col>
+                <ion-col size="12" size-md="6">
+                  <ion-item lines="full">
+                    <ion-label position="stacked">Hora fin (opcional)</ion-label>
+                    <div class="time-select-row">
+                      <ion-select
+                        interface="popover"
+                        [value]="horaFinHora()"
+                        (ionChange)="onHoraFinHoraChange($event)">
+                        @for (h of horas; track h) {
+                          <ion-select-option [value]="h">{{ h }}</ion-select-option>
+                        }
+                      </ion-select>
+                      <ion-select
+                        interface="popover"
+                        [value]="horaFinMinuto()"
+                        (ionChange)="onHoraFinMinutoChange($event)">
+                        @for (m of minutos; track m) {
+                          <ion-select-option [value]="m">{{ m }}</ion-select-option>
+                        }
+                      </ion-select>
+                    </div>
+                    <ion-note slot="helper" color="medium">
+                      {{ form().hora_fin ? formatHora12(form().hora_fin) : formatHora12(form().hora_inicio) }}
+                    </ion-note>
+                  </ion-item>
+                </ion-col>
+              </ion-row>
+            </ion-grid>
+          </ion-card-content>
+        </ion-card>
+      </ion-content>
+
+      <ion-footer class="ion-padding">
+        <ion-toolbar>
+          <ion-buttons slot="start">
+            <ion-button fill="outline" color="medium" (click)="closeForm()">
+              Cancelar
+            </ion-button>
+          </ion-buttons>
+          <ion-buttons slot="end">
+            <ion-button color="primary" (click)="saveForm()">
+              Guardar
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-footer>
+    </ng-template>
+  </ion-modal>
+</ion-content>
