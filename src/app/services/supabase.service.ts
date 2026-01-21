@@ -96,6 +96,57 @@ export class SupabaseService {
     return { data: null, error } as any;
   }
 
+  // Recorridos (solo Supabase)
+  // Tabla: recorridos(id, ruta_id, perfil_id, vehiculo_id?, estado, iniciado_en, finalizado_en)
+
+  async listRecorridos() {
+    const { data, error } = await this.supabase
+      .from('recorridos')
+      .select('*')
+      .order('iniciado_en', { ascending: false });
+    return { data: (data || []) as any[], error } as any;
+  }
+
+  async createRecorrido(payload: {
+    ruta_id: string;
+    perfil_id?: string | null;
+    vehiculo_id?: string | null;
+    estado?: string | null;
+  }) {
+    const row: any = {
+      ruta_id: payload.ruta_id,
+      perfil_id: payload.perfil_id ?? null,
+      vehiculo_id: payload.vehiculo_id ?? null,
+    };
+    if (payload.estado != null) row.estado = payload.estado;
+    const { data, error } = await this.supabase
+      .from('recorridos')
+      .insert(row)
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
+  async updateRecorrido(
+    id: string,
+    updates: {
+      ruta_id?: string;
+      perfil_id?: string | null;
+      vehiculo_id?: string | null;
+      estado?: string | null;
+      iniciado_en?: string | null;
+      finalizado_en?: string | null;
+    }
+  ) {
+    const { data, error } = await this.supabase
+      .from('recorridos')
+      .update(updates as any)
+      .eq('id', id)
+      .select('*')
+      .single();
+    return { data, error } as any;
+  }
+
   setCurrentRole(role: 'admin' | 'conductor' | 'cliente' | null) {
     this.currentRole.set(role);
   }

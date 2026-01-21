@@ -206,21 +206,22 @@ export class MapaPage implements AfterViewInit {
     this.loadUserRole().then(async () => {
       // Clientes: observar recorridos activos
       this.watchActiveRecorridosForClients();
+      // Preselección de ruta (para clientes y conductores) y vehículo (solo si viene en query)
+      try {
+        const qp = this.route.snapshot.queryParamMap;
+        const rutaId = qp.get('ruta');
+        const vehiculoId = qp.get('vehiculo');
+        if (rutaId) {
+          this.selectedRutaId.set(rutaId);
+          this.highlightSelectedRuta(rutaId);
+        }
+        if (vehiculoId) {
+          this.selectedVehiculoId.set(vehiculoId);
+        }
+      } catch {}
+
       // Conductores: intentar restaurar posición y continuar si hay recorrido en curso
       if (this.userRole() === 'conductor') {
-        // Preselección desde query params (ruta y vehiculo)
-        try {
-          const qp = this.route.snapshot.queryParamMap;
-          const rutaId = qp.get('ruta');
-          const vehiculoId = qp.get('vehiculo');
-          if (rutaId) {
-            this.selectedRutaId.set(rutaId);
-            this.highlightSelectedRuta(rutaId);
-          }
-          if (vehiculoId) {
-            this.selectedVehiculoId.set(vehiculoId);
-          }
-        } catch {}
         if (this.realTracking()) {
           try {
             await this.ensureGeoPermission();
@@ -519,16 +520,6 @@ export class MapaPage implements AfterViewInit {
           // Enviar posición en tiempo casi real a API, Supabase y canal de broadcast (con throttling)
           try {
             const now = Date.now();
-            if (
-              recId &&
-              !recId.startsWith('local-') &&
-              now - this.lastApiPosAtMs >= this.MIN_API_POS_MS
-            ) {
-              this.lastApiPosAtMs = now;
-              try {
-                await this.mapData.registrarPosicion(recId, lat, lng, vel);
-              } catch {}
-            }
             if (now - this.lastSupaPosAtMs >= this.MIN_SUPA_POS_MS) {
               this.lastSupaPosAtMs = now;
               try {
@@ -590,9 +581,6 @@ export class MapaPage implements AfterViewInit {
       });
       if (now - this.lastApiPosAtMs >= this.MIN_API_POS_MS) {
         this.lastApiPosAtMs = now;
-        try {
-          await this.mapData.registrarPosicion(recId, lat, lng, vel);
-        } catch {}
       }
       if (now - this.lastSupaPosAtMs >= this.MIN_SUPA_POS_MS) {
         this.lastSupaPosAtMs = now;

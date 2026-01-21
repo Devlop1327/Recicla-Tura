@@ -62,14 +62,32 @@
           </ion-card-header>
           <ion-card-content>
             <p *ngIf="$any(sel).descripcion">{{ $any(sel).descripcion }}</p>
-            <p *ngIf="$any(sel).horario">Horario: {{ $any(sel).horario }}</p>
-            <p
-              *ngIf="!$any(sel).horario"
-              class="ion-text-center"
-              color="medium"
-            >
-              Sin horario definido para esta ruta.
+            <p class="ion-text-center" color="medium">
+              Mostrando horarios para hoy ({{ todayLabel }}).
             </p>
+
+            <ng-container *ngIf="horariosDeRuta(sel.id).length > 0; else noHorariosTpl">
+              <ion-list lines="full">
+                <ion-item
+                  button
+                  detail="true"
+                  *ngFor="let h of horariosDeRuta(sel.id)"
+                  (click)="irAlMapaConRuta(sel)"
+                >
+                  <ion-label>
+                    <h3>{{ labelDias(h.dias_semana) }}</h3>
+                    <p>{{ formatHora12(h.hora_inicio) }} - {{ h.hora_fin ? formatHora12(h.hora_fin) : '—' }}</p>
+                  </ion-label>
+                  <ion-icon name="navigate-outline" slot="end"></ion-icon>
+                </ion-item>
+              </ion-list>
+            </ng-container>
+
+            <ng-template #noHorariosTpl>
+              <p class="ion-text-center" color="medium">
+                Sin horarios definidos para esta ruta.
+              </p>
+            </ng-template>
           </ion-card-content>
         </ion-card>
       </ion-col>

@@ -419,21 +419,18 @@ export class MapDataService {
     try {
       this.loading.set(true);
       this.error.set(null);
-      const data = await firstValueFrom(
-        this.http.get<{ data?: RecorridoApiItem[] } | RecorridoApiItem[]>(
-          `${this.baseUrl}/misrecorridos`,
-          {
-            params: { perfil_id: this.profileId },
-          }
-        )
-      );
-      const items = Array.isArray(data)
-        ? (data as RecorridoApiItem[])
-        : data?.data ?? [];
+      const { data, error } = await this.supabase.listRecorridos();
+      if (error) {
+        this.error.set((error as any)?.message ?? 'Error al cargar recorridos');
+        this.recorridos.set([]);
+        return [];
+      }
+      const items = (Array.isArray(data) ? data : []) as RecorridoApiItem[];
       this.recorridos.set(items);
       return items;
     } catch (e: any) {
       this.error.set(e?.message ?? 'Error al cargar recorridos');
+      this.recorridos.set([]);
       return [];
     } finally {
       this.loading.set(false);
@@ -445,47 +442,45 @@ export class MapDataService {
     vehiculoId?: string
   ): Promise<RecorridoApiItem | null> {
     try {
-      console.log('[MapDataService] POST /recorridos/iniciar', {
-        url: `${this.baseUrl}/recorridos/iniciar`,
-        body: {
-          ruta_id: rutaId,
-          vehiculo_id: vehiculoId,
-          perfil_id: this.profileId,
-        },
+      const currentProfile = this.supabase.currentProfile();
+      const perfilId = (currentProfile as any)?.id ?? null;
+      const { data, error } = await this.supabase.createRecorrido({
+        ruta_id: rutaId,
+        vehiculo_id: vehiculoId ?? null,
+        perfil_id: perfilId,
+        estado: 'en_progreso',
       });
-      const data = await firstValueFrom(
-        this.http.post<{ data: RecorridoApiItem }>(
-          `${this.baseUrl}/recorridos/iniciar`,
-          {
-            ruta_id: rutaId,
-            vehiculo_id: vehiculoId,
-            perfil_id: this.profileId,
-          }
-        )
-      );
-      return data?.data ?? null;
+      if (error) {
+        console.warn('[MapDataService] createRecorrido Supabase error', error);
+        return null;
+      }
+      const rec = data as RecorridoApiItem;
+      // Emitir señal realtime para que clientes refresquen
+      try {
+        const ch = this.recorridosChannel;
+        await ch?.send({
+          type: 'broadcast',
+          event: 'recorrido',
+          payload: { action: 'start', recorridoId: rec.id },
+        });
+      } catch {}
+      return rec;
     } catch (e: any) {
-      console.warn(
-        '[MapDataService] POST /recorridos no disponible (quizá 404). Funcionalidad no soportada por la API pública.',
-        e?.message || e
-      );
+      console.warn('[MapDataService] createRecorrido Supabase exception', e);
       return null;
     }
   }
 
   async finalizarRecorrido(recorridoId: string): Promise<boolean> {
     try {
-      console.log('[MapDataService] POST /recorridos/{id}/finalizar', {
-        url: `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
-        body: { perfil_id: this.profileId },
+      const { error } = await this.supabase.updateRecorrido(recorridoId, {
+        estado: 'finalizado',
+        finalizado_en: new Date().toISOString(),
       });
-      await firstValueFrom(
-        this.http.post(
-          `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
-          { perfil_id: this.profileId },
-          { params: { perfil_id: this.profileId } as any }
-        )
-      );
+      if (error) {
+        console.warn('[MapDataService] updateRecorrido Supabase error', error);
+        return false;
+      }
       // Emitir señal realtime para que clientes refresquen
       try {
         const ch = this.recorridosChannel;
@@ -497,26 +492,8 @@ export class MapDataService {
       } catch {}
       return true;
     } catch (e: any) {
-      console.warn(
-        '[MapDataService] finalizarRecorrido con perfil_id falló, reintentando sin body...',
-        e?.message || e
-      );
-      try {
-        await firstValueFrom(
-          this.http.post(
-            `${this.baseUrl}/recorridos/${recorridoId}/finalizar`,
-            {},
-            { params: { perfil_id: this.profileId } as any }
-          )
-        );
-        return true;
-      } catch (e2: any) {
-        console.warn(
-          '[MapDataService] POST /recorridos/{id}/finalizar falló definitivamente:',
-          e2?.message || e2
-        );
-        return false;
-      }
+      console.warn('[MapDataService] finalizarRecorrido Supabase exception', e);
+      return false;
     }
   }
 
@@ -583,29 +560,8 @@ export class MapDataService {
     lng: number,
     velocidad?: number
   ) {
-    try {
-      console.log(
-        '[MapDataService] registrarPosicion -> intentando enviar a API',
-        {
-          recorridoId,
-          lat,
-          lng,
-          velocidad,
-        }
-      );
-      await firstValueFrom(
-        this.http.post(`${this.baseUrl}/recorridos/${recorridoId}/posiciones`, {
-          lat,
-          lon: lng,
-          perfil_id: this.profileId,
-          velocidad,
-        })
-      );
-      console.log('[MapDataService] registrarPosicion -> OK');
-      return true;
-    } catch (e) {
-      console.error('[MapDataService] registrarPosicion error', e);
-      return false;
-    }
+    // La persistencia de posiciones ahora se hace solo en Supabase (tabla 'ubicaciones').
+    // Este método se mantiene como no-op para no romper llamadas existentes.
+    return true;
   }
 }
