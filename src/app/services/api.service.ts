@@ -198,49 +198,4 @@ export class ApiService {
     return await firstValueFrom(this.http.get<any>(url).pipe(timeout(12000)));
   }
 
-  // Recorridos: iniciar
-  async iniciarRecorrido(payload: {
-    ruta_id: string;
-    vehiculo_id: string;
-    perfil_id?: string;
-  }): Promise<any> {
-    const url = `${this.baseUrl}recorridos/iniciar?perfil_id=${this.profileId}`;
-    const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId };
-    console.log('API Service - Iniciar recorrido:', url, body);
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.post({
-        url,
-        headers: { 'Content-Type': 'application/json' },
-        data: body,
-      });
-      const data = res?.data as any;
-      return data?.data ?? data;
-    }
-    const resp = await firstValueFrom(
-      this.http.post<any>(url, body).pipe(timeout(12000))
-    );
-    return resp?.data ?? resp;
-  }
-
-  // Recorridos: registrar posición
-  async registrarPosicion(
-    recorridoId: string,
-    payload: { lat: number; lon: number; perfil_id?: string }
-  ): Promise<any> {
-    const url = `${this.baseUrl}recorridos/${recorridoId}/posiciones?perfil_id=${this.profileId}`;
-    const body = { ...payload, perfil_id: payload.perfil_id ?? this.profileId };
-    if (Capacitor.isNativePlatform()) {
-      const res = await CapacitorHttp.post({
-        url,
-        headers: { 'Content-Type': 'application/json' },
-        data: body,
-      });
-      const data = res?.data as any;
-      return data?.data ?? data;
-    }
-    const resp = await firstValueFrom(
-      this.http.post<any>(url, body).pipe(timeout(12000))
-    );
-    return resp?.data ?? resp;
-  }
 }

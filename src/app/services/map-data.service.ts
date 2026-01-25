@@ -495,54 +495,29 @@ export class MapDataService {
       return [];
     }
     try {
-      const data = await firstValueFrom(
-        this.http.get<{ data: any[] }>(
-          `${this.baseUrl}/recorridos/${recorridoId}/posiciones`,
-          {
-            params: { perfil_id: this.profileId } as any,
-          }
+      const { data, error } = await this.supabase.supabase
+        .from('ubicaciones')
+        .select('*')
+        .eq('recorrido_id', recorridoId)
+        .order('created_at', { ascending: true });
+      if (error) return [];
+      const rows = Array.isArray(data) ? data : [];
+      return rows
+        .map(
+          (r: any) =>
+            ({
+              id: r.id,
+              recorrido_id: r.recorrido_id ?? recorridoId,
+              lat: (r.lat ?? r.latitud) as number,
+              lng: (r.lng ?? r.longitud) as number,
+              velocidad: r.velocidad ?? null,
+              timestamp:
+                r.created_at || r.updated_at || new Date().toISOString(),
+            } as PosicionApiItem)
         )
-      );
-      const arr = Array.isArray(data?.data) ? data!.data : [];
-      return arr.map(
-        (p: any) =>
-          ({
-            id: p.id,
-            recorrido_id: p.recorrido_id,
-            lat: p.lat,
-            lng: p.lng ?? p.lon,
-            velocidad: p.velocidad,
-            timestamp: p.timestamp || p.created_at || new Date().toISOString(),
-          } as PosicionApiItem)
-      );
+        .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
     } catch {
-      try {
-        const { data, error } = await this.supabase.supabase
-          .from('ubicaciones')
-          .select('*')
-          .eq('recorrido_id', recorridoId)
-          .order('created_at', { ascending: true });
-        if (error) return [];
-        const rows = Array.isArray(data) ? data : [];
-        return rows
-          .map(
-            (r: any) =>
-              ({
-                id: r.id,
-                recorrido_id: r.recorrido_id ?? recorridoId,
-                lat: (r.lat ?? r.latitud) as number,
-                lng: (r.lng ?? r.longitud) as number,
-                velocidad: r.velocidad ?? null,
-                timestamp:
-                  r.created_at || r.updated_at || new Date().toISOString(),
-              } as PosicionApiItem)
-          )
-          .filter(
-            (p) => typeof p.lat === 'number' && typeof p.lng === 'number'
-          );
-      } catch {
-        return [];
-      }
+      return [];
     }
   }
 

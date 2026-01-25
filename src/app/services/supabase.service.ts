@@ -566,8 +566,8 @@ export class SupabaseService {
         latitud: row.lat,
         longitud: row.lng,
       };
+      if (row.recorrido_id) payload.recorrido_id = row.recorrido_id;
       if (row.ruta_id) payload.ruta_id = row.ruta_id;
-      else if (row.recorrido_id) payload.recorrido_id = row.recorrido_id;
 
       const { data, error } = await this.supabase
         .from('ubicaciones')
