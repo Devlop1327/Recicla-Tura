@@ -176,7 +176,6 @@ export class SupabaseService {
     if (this.cachedUser && now - this.cachedUserAt < this.userTtlMs) {
       return this.cachedUser;
     }
-    // Deduplicar llamadas paralelas
     if (this.getUserInFlight) {
       return this.getUserInFlight;
     }

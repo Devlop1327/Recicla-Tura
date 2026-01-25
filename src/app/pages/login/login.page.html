@@ -31,7 +31,8 @@
                 type="email"
                 formControlName="email"
                 placeholder="tu@email.com"
-                required>
+                required
+                (keyup.enter)="onSubmit()">
               </ion-input>
             </ion-item>
 
@@ -50,18 +51,27 @@
               <ion-item>
                 <ion-label position="stacked">Contraseña</ion-label>
                 <ion-input
-                  type="password"
+                  [type]="showPassword() ? 'text' : 'password'"
                   formControlName="password"
                   placeholder="••••••••"
-                  required>
+                  required
+                  (keyup.enter)="onSubmit()">
                 </ion-input>
+                <ion-button
+                  fill="clear"
+                  slot="end"
+                  size="small"
+                  (click)="togglePasswordVisibility()"
+                  aria-label="Mostrar u ocultar contraseña">
+                  <ion-icon [name]="showPassword() ? 'eye-off' : 'eye'"></ion-icon>
+                </ion-button>
               </ion-item>
 
               <ion-button
                 expand="block"
                 [disabled]="isLoading() || form.invalid"
                 class="login-button"
-                (click)="isSignUp() ? signUp() : login()">
+                (click)="onSubmit()">
                 @if (isLoading()) {
                   <ion-spinner name="crescent"></ion-spinner>
                   <ion-text style="margin-left: 8px">Cargando...</ion-text>
@@ -76,16 +86,19 @@
               </ion-button>
             </ion-col>
           </ion-row>
+
+          <ion-row class="forgot-section" justify-content-center>
+            <ion-col size="12" class="ion-text-center">
+              <ion-button fill="clear" size="small" routerLink="/recover">¿Olvidaste tu contraseña?</ion-button>
+            </ion-col>
+          </ion-row>
         </ion-card-content>
       </ion-card>
     </ion-row>
 
     <ion-row class="info-section" justify-content-center>
       <ion-col size="12" class="ion-text-center">
-        <ion-button class="ion-margin-top" fill="clear" size="small" routerLink="/recover">¿Olvidaste tu contraseña?</ion-button>
-        <ion-text color="medium" class="ion-text-center">🚛 Rutas Ecologicas!</ion-text>
       </ion-col>
     </ion-row>
   </ion-grid>
 </ion-content>
-

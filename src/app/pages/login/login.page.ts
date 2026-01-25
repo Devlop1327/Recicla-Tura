@@ -22,6 +22,7 @@ export class LoginPage {
   role = signal<'admin' | 'conductor' | 'cliente'>('cliente');
   form!: FormGroup;
   isDarkMode = signal(false);
+  showPassword = signal(false);
 
   constructor(
     private supabaseService: SupabaseService,
@@ -56,6 +57,21 @@ export class LoginPage {
     } finally {
       this.isLoading.set(false);
     }
+  }
+
+  onSubmit() {
+    if (this.isLoading() || !this.form || this.form.invalid) {
+      return;
+    }
+    if (this.isSignUp()) {
+      this.signUp();
+    } else {
+      this.login();
+    }
+  }
+
+  togglePasswordVisibility() {
+    this.showPassword.set(!this.showPassword());
   }
 
   async login() {
