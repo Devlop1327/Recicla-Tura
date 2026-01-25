@@ -71,7 +71,7 @@
   @if (userRole() === 'admin') {
     <ion-list inset="true">
       <ion-item lines="none" class="actions-inline">
-        <ion-button size="small" color="primary" (click)="toggleEditing()">{{ editing() ? 'Salir edición' : 'Editar ruta' }}</ion-button>
+        <ion-button size="small" color="primary" (click)="toggleEditing()">{{ editing() ? 'Salir edición' : 'Crear ruta' }}</ion-button>
         <ion-button size="small" color="medium" (click)="undoLast()" [disabled]="draftCount() === 0">Deshacer</ion-button>
         <ion-button size="small" color="light" (click)="clearDraft()" [disabled]="draftCount() === 0">Limpiar</ion-button>
       </ion-item>

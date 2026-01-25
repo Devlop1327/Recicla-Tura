@@ -302,27 +302,28 @@ export class MapDataService {
     callesIds?: string[];
   }): Promise<RutaApiItem | null> {
     try {
-      // Crear directamente en Supabase
-      const { data, error } = await this.supabase.supabase
-        .from('rutas_geojson')
-        .insert({
-          nombre: payload.nombre,
-          descripcion: payload.descripcion || '',
-          shape: payload.shape ? JSON.stringify(payload.shape) : null,
-        })
-        .select('*')
-        .single();
-      
+      const currentProfile = this.supabase.currentProfile();
+      const perfilId = (currentProfile as any)?.id ?? null;
+      const { data, error } = await this.supabase.createRutaGeoJson({
+        nombre_ruta: payload.nombre,
+        perfil_id: perfilId || '',
+        shape: payload.shape ?? null,
+        descripcion: payload.descripcion || null,
+        activa: true,
+      });
+
       if (error) {
-        console.error('[MapDataService] Error creando ruta en Supabase:', error);
+        console.error('[MapDataService] Error creando ruta en Supabase (rutas):', error);
         return null;
       }
-      
+
+      const createdRow: any = data;
       const created: RutaApiItem = {
-        id: data.id,
-        nombre: data.nombre,
-        descripcion: data.descripcion,
-        shape: data.shape,
+        id: createdRow.id,
+        nombre: createdRow.nombre || createdRow.nombre_ruta || payload.nombre,
+        descripcion:
+          createdRow.descripcion || createdRow.descripcion_ruta || payload.descripcion || '',
+        shape: createdRow.shape ?? payload.shape ?? null,
       };
       
       console.log('[MapDataService] Ruta creada en Supabase:', created);
@@ -333,24 +334,13 @@ export class MapDataService {
       
       return created;
     } catch (e: any) {
-      console.error('[MapDataService] Error creando ruta:', e?.error ?? e);
+      console.error('[MapDataService] createRuta error:', e);
       return null;
     }
   }
 
   async deleteRuta(id: string): Promise<boolean> {
     try {
-      // Eliminar de la vista/tabla rutas_geojson en Supabase
-      const { error: errorGeojson } = await this.supabase.supabase
-        .from('rutas_geojson')
-        .delete()
-        .eq('id', id);
-      
-      if (errorGeojson && errorGeojson.code !== 'PGRST116') {
-        console.error('[MapDataService] Error eliminando de rutas_geojson:', errorGeojson);
-      }
-      
-      // También eliminar de la tabla rutas por si existe allí
       const { error } = await this.supabase.deleteRuta(id);
       if (error && (error as any).code !== 'PGRST116') {
         throw error;
@@ -373,29 +363,31 @@ export class MapDataService {
     updates: { nombre?: string; descripcion?: string; shape?: any }
   ): Promise<RutaApiItem | null> {
     try {
-      // Actualizar directamente en Supabase
       const updateData: any = {};
       if (updates.nombre !== undefined) updateData.nombre = updates.nombre;
-      if (updates.descripcion !== undefined) updateData.descripcion = updates.descripcion;
-      if (updates.shape !== undefined) updateData.shape = updates.shape ? JSON.stringify(updates.shape) : null;
-      
+      if (updates.descripcion !== undefined)
+        updateData.descripcion = updates.descripcion;
+      if (updates.shape !== undefined)
+        updateData.shape = updates.shape ? JSON.stringify(updates.shape) : null;
+
       const { data, error } = await this.supabase.supabase
-        .from('rutas_geojson')
+        .from('rutas')
         .update(updateData)
         .eq('id', id)
         .select('*')
         .single();
-      
+
       if (error) {
-        console.error('[MapDataService] Error actualizando ruta en Supabase:', error);
+        console.error('[MapDataService] Error actualizando ruta en Supabase (rutas):', error);
         return null;
       }
-      
+
+      const row: any = data;
       const updated: RutaApiItem = {
-        id: data.id,
-        nombre: data.nombre,
-        descripcion: data.descripcion,
-        shape: data.shape,
+        id: row.id,
+        nombre: row.nombre || row.nombre_ruta,
+        descripcion: row.descripcion || row.descripcion_ruta,
+        shape: row.shape,
       };
       
       console.log('[MapDataService] Ruta actualizada en Supabase:', updated);
