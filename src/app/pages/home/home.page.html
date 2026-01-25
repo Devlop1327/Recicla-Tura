@@ -1,25 +1,12 @@
 <ion-content>
   <ion-grid class="home-container">
-    <!-- Header con información de la ruta seleccionada -->
+    <!-- Header solo con el logo centrado -->
     <ion-row class="header-section">
       <ion-col size="12">
         <ion-card>
           <ion-card-content>
-            <ion-row class="header-content" justify-content-between>
-              <ion-col class="route-info">
-                <br />
-                @if (selectedRuta()) {
-                <ion-text class="ion-margin-top"
-                  >{{ selectedRuta()!.nombre }}</ion-text
-                >
-                <ion-text color="medium"
-                  >{{ selectedRuta()!.descripcion }}</ion-text
-                >
-                } @else {
-                <ion-text color="medium">Cargando rutas...</ion-text>
-                }
-              </ion-col>
-              <ion-col class="logo-col" size="auto">
+            <ion-row class="header-content" justify-content-center>
+              <ion-col class="logo-col" size="12">
                 <ion-img
                   src="assets/icon/Logo.png"
                   class="app-logo"
@@ -140,7 +127,8 @@
     </ion-row>
     }
 
-    <!-- Lista de vehículos -->
+    <!-- Lista de vehículos (oculta para conductores) -->
+    @if (role() !== 'conductor') {
     <ion-row class="vehicles-section">
       <ion-col size="12">
         <ion-card>
@@ -204,5 +192,6 @@
         </ion-card>
       </ion-col>
     </ion-row>
+    }
   </ion-grid>
 </ion-content>

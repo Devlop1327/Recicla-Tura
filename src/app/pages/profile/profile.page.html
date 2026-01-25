@@ -30,11 +30,6 @@
                   </ion-row>
                 }
               </ion-col>
-              <ion-col class="header-actions" size="auto">
-                <ion-button fill="outline" size="small" color="medium" (click)="openPwdModal()">
-                  Cambiar contraseña
-                </ion-button>
-              </ion-col>
             </ion-row>
           </ion-card-content>
         </ion-card>
@@ -123,24 +118,24 @@
           <ion-row class="stats-grid">
             <ion-col class="stat-item" size="12">
               <ion-icon name="notifications" color="primary"></ion-icon>
-              <ion-col class="stat-info">
-                <ion-text>12</ion-text>
-                <ion-text color="medium">Notificaciones</ion-text>
-              </ion-col>
+              <div class="stat-info">
+                <h3>{{ totalNotificaciones() }}</h3>
+                <p>Notificaciones</p>
+              </div>
             </ion-col>
             <ion-col class="stat-item" size="12">
               <ion-icon name="time" color="success"></ion-icon>
-              <ion-col class="stat-info">
-                <ion-text>5</ion-text>
-                <ion-text color="medium">Días activo</ion-text>
-              </ion-col>
+              <div class="stat-info">
+                <h3>{{ getDiasActivo() }}</h3>
+                <p>Días activo</p>
+              </div>
             </ion-col>
             <ion-col class="stat-item" size="12">
               <ion-icon name="location" color="warning"></ion-icon>
-              <ion-col class="stat-info">
-                <ion-text>3</ion-text>
-                <ion-text color="medium">Rutas seguidas</ion-text>
-              </ion-col>
+              <div class="stat-info">
+                <h3>{{ rutasSeguidas() }}</h3>
+                <p>Rutas seguidas</p>
+              </div>
             </ion-col>
           </ion-row>
         </ion-card-content>
@@ -153,7 +148,37 @@
       <ion-col size="12">
       <ion-card>
         <ion-card-content>
-          <ion-row class="action-buttons">
+          <ion-row class="action-buttons" style="row-gap: 16px;">
+            <ion-col size="12">
+              <ion-button expand="block" fill="outline" color="primary" (click)="togglePwdForm()">
+                {{ showPwdForm() ? 'Cancelar cambio de contraseña' : 'Cambiar contraseña' }}
+              </ion-button>
+            </ion-col>
+            @if (showPwdForm()) {
+            <ion-col size="12">
+              <ion-label position="stacked">Nueva contraseña</ion-label>
+              <ion-input
+                type="password"
+                [value]="pwdNew()"
+                (ionInput)="pwdNew.set($event.detail.value!)"
+                placeholder="Mínimo 6 caracteres">
+              </ion-input>
+            </ion-col>
+            <ion-col size="12">
+              <ion-label position="stacked">Confirmar contraseña</ion-label>
+              <ion-input
+                type="password"
+                [value]="pwdConfirm()"
+                (ionInput)="pwdConfirm.set($event.detail.value!)"
+                placeholder="Repite la contraseña">
+              </ion-input>
+            </ion-col>
+            <ion-col size="12">
+              <ion-button expand="block" color="primary" (click)="changePassword()">
+                Guardar contraseña
+              </ion-button>
+            </ion-col>
+            }
             <ion-col size="12">
               <ion-button 
                 expand="block" 
@@ -171,31 +196,3 @@
     </ion-row>
   </ion-grid>
 </ion-content>
-
-<!-- Modal Cambiar contraseña -->
-<ion-modal [isOpen]="pwdModal()" (didDismiss)="closePwdModal()">
-  <ng-template>
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>Cambiar contraseña</ion-title>
-        <ion-buttons slot="end">
-          <ion-button (click)="closePwdModal()">Cerrar</ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
-    <ion-content class="ion-padding">
-      <ion-list>
-        <ion-item>
-          <ion-label position="stacked">Nueva contraseña</ion-label>
-          <ion-input type="password" [value]="pwdNew()" (ionInput)="pwdNew.set($event.detail.value!)" placeholder="Mínimo 6 caracteres"></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label position="stacked">Confirmar contraseña</ion-label>
-          <ion-input type="password" [value]="pwdConfirm()" (ionInput)="pwdConfirm.set($event.detail.value!)" placeholder="Repite la contraseña"></ion-input>
-        </ion-item>
-      </ion-list>
-      <ion-button expand="block" color="primary" (click)="changePassword()">Guardar contraseña</ion-button>
-    </ion-content>
-  </ng-template>
-</ion-modal>
-

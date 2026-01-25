@@ -21,34 +21,49 @@
       <ion-col size="12">
         <ion-card>
           <ion-card-header>
-            <ion-card-title>Sin horario definido</ion-card-title>
-            <ion-card-subtitle>Rutas asignadas:</ion-card-subtitle>
+            <ion-card-title>Rutas asignadas</ion-card-title>
+            <ion-card-subtitle>
+              Horarios para: {{ diaLabel(selectedDia()) }}
+            </ion-card-subtitle>
           </ion-card-header>
           <ion-card-content>
-            <ng-container *ngIf="!isLoading(); else loadingTpl">
-              <ion-row>
-                <ion-col
-                  size="12"
-                  class="ion-text-center"
-                  *ngIf="rutas().length === 0"
-                >
-                  <ion-text color="medium">No hay rutas asignadas.</ion-text>
-                </ion-col>
-                <ion-col
-                  size="12"
-                  class="chips-container"
-                  *ngIf="rutas().length > 0"
-                >
-                  <ion-chip
-                    *ngFor="let ruta of rutas()"
-                    (click)="selectRuta(ruta)"
-                    class="ruta-chip"
+            @if (!isLoading()) {
+            <ion-row>
+              @if (rutas().length === 0) {
+              <ion-col size="12" class="ion-text-center">
+                <ion-text color="medium">No hay rutas asignadas.</ion-text>
+              </ion-col>
+              } @else {
+              <ion-col size="12" class="chips-container">
+                <div class="dias-scroll ion-margin-bottom">
+                  <ion-segment
+                    [value]="selectedDia()"
+                    (ionChange)="onDiaChange($event)"
                   >
+                    @for (d of dias; track d.value) {
+                    <ion-segment-button [value]="d.value">
+                      <ion-label>{{ d.label }}</ion-label>
+                    </ion-segment-button>
+                    }
+                  </ion-segment>
+                </div>
+                <div class="chips-scroll">
+                  @for (ruta of rutasParaDia(); track ruta.id) {
+                  <ion-chip (click)="selectRuta(ruta)" class="ruta-chip">
                     <ion-label>{{ ruta.nombre }}</ion-label>
                   </ion-chip>
-                </ion-col>
-              </ion-row>
-            </ng-container>
+                  } @empty {
+                  <ion-text color="medium">No hay rutas con horario para este día.</ion-text>
+                  }
+                </div>
+              </ion-col>
+              }
+            </ion-row>
+            } @else {
+            <ion-row class="ion-justify-content-center ion-padding">
+              <ion-spinner class="ion-margin"></ion-spinner>
+            </ion-row>
+            }
           </ion-card-content>
         </ion-card>
       </ion-col>

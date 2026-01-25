@@ -36,10 +36,14 @@ export class ProfilePage implements OnInit {
   phone = signal('');
   address = signal('');
 
-  // Modal cambio de contraseña
-  pwdModal = signal(false);
+  // Cambio de contraseña en la misma pantalla
+  showPwdForm = signal(false);
   pwdNew = signal('');
   pwdConfirm = signal('');
+
+  // Estadísticas
+  totalNotificaciones = signal(0);
+  rutasSeguidas = signal(0);
 
   constructor(
     private supabaseService: SupabaseService,
@@ -50,6 +54,7 @@ export class ProfilePage implements OnInit {
 
   async ngOnInit() {
     await this.loadProfile();
+    await this.loadStats();
   }
 
   async loadProfile() {
@@ -75,6 +80,48 @@ export class ProfilePage implements OnInit {
       this.showToast('Error inesperado', 'danger');
     } finally {
       this.isLoading.set(false);
+    }
+  }
+
+  togglePwdForm() {
+    const next = !this.showPwdForm();
+    this.showPwdForm.set(next);
+    if (!next) {
+      this.pwdNew.set('');
+      this.pwdConfirm.set('');
+    }
+  }
+
+  private async loadStats() {
+    try {
+      const user = await this.supabaseService.getCurrentUser();
+      if (!user) return;
+
+      // Total de notificaciones del usuario
+      try {
+        const { data } = await this.supabaseService.getNotificaciones(user.id);
+        const list = (data as any[]) || [];
+        this.totalNotificaciones.set(list.length);
+      } catch (e) {
+        console.error('[ProfilePage] Error cargando estadísticas de notificaciones:', e);
+      }
+
+      // Rutas seguidas: contar rutas distintas en recorridos del perfil
+      try {
+        const { data } = await this.supabaseService.listRecorridos();
+        const list = (data as any[]) || [];
+        const mine = list.filter((r) => r.perfil_id === user.id);
+        const rutas = new Set(
+          mine
+            .map((r) => r.ruta_id)
+            .filter((id) => typeof id === 'string' && id?.length > 0)
+        );
+        this.rutasSeguidas.set(rutas.size);
+      } catch (e) {
+        console.error('[ProfilePage] Error cargando estadísticas de rutas seguidas:', e);
+      }
+    } catch (e) {
+      console.error('[ProfilePage] Error general cargando estadísticas:', e);
     }
   }
 
@@ -120,10 +167,6 @@ export class ProfilePage implements OnInit {
     }
   }
 
-  // Password modal controls
-  openPwdModal() { this.pwdModal.set(true); }
-  closePwdModal() { this.pwdModal.set(false); this.pwdNew.set(''); this.pwdConfirm.set(''); }
-
   async changePassword() {
     try {
       const newPwd = (this.pwdNew() || '').trim();
@@ -143,7 +186,8 @@ export class ProfilePage implements OnInit {
         return;
       }
       await this.showToast('Contraseña actualizada', 'success');
-      this.closePwdModal();
+      this.pwdNew.set('');
+      this.pwdConfirm.set('');
     } catch (e) {
       await this.showToast('Error inesperado al cambiar contraseña', 'danger');
     } finally {
@@ -199,6 +243,16 @@ export class ProfilePage implements OnInit {
       return new Date(this.profile()!.created_at).toLocaleDateString('es-CO');
     }
     return 'N/A';
+  }
+
+  getDiasActivo(): number {
+    const created = this.profile()?.created_at;
+    if (!created) return 0;
+    const start = new Date(created);
+    const now = new Date();
+    const diffMs = now.getTime() - start.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 ? diffDays + 1 : 0;
   }
 
   private async showToast(message: string, color: string) {

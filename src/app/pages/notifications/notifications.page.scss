@@ -1,5 +1,6 @@
 .notifications-container {
-  padding: 16px;
+  /* Más espacio arriba para que el contenido no se tape con el header */
+  padding: 50px 16px 16px 16px;
   background: var(--ion-color-light);
   min-height: 100vh;
 }
@@ -203,7 +204,8 @@
 // Responsive design
 @media (max-width: 768px) {
   .notifications-container {
-    padding: 12px;
+    /* También en móvil, dejar un margen superior extra (más grande) */
+    padding: 50px 12px 12px 12px;
   }
 
   .notification-content {
